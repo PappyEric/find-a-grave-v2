@@ -3,7 +3,7 @@
 Create a local, offline media-rich archive of Find a Grave (https://www.findagrave.com) memorial pages and analyze relationships to build family trees.
 
 ## Last Updated
-2026-07-19 (Updated with Local Web GUI, SQLite Caching, GPS Scraping, Detailed Name Parsing, Vis.js Pedigree Trees, & On-Demand Media Vault)
+2026-07-19 (Updated with Local Web GUI, SQLite Caching, GPS Scraping, Detailed Name Parsing, Vis.js Pedigree Trees, On-Demand Media Vault, & GEDCOM Export)
 
 This project builds upon the original command-line scraping scripts developed by **Doug Foster** (https://dougfoster.me). It has been upgraded into a local workstation featuring a Flask Web GUI dashboard, SQLite database, background browser recycling, automated Cloudflare challenge bypass, and deep extraction capabilities.
 
@@ -56,6 +56,12 @@ Directly in the Web GUI's Biography & Details modal, switch to the **🕸️ Int
 
 ### 7. Veteran Badge Parsing
 * Automatically deconflicts the Find a Grave veteran military honor badge (`<b class="icon-vet">`) from name text, preventing letters like `VVeteran` from corrupting the parsed **Last Name** field.
+
+### 8. GEDCOM File Export
+Export stashed relationship networks into standard genealogy exchange format (`.ged`) files to import into Ancestry.com, FamilySearch, Gramps, or MyHeritage:
+* **Focus Person Line Export**: Recursively crawls the connected family line (ancestors, spouses, siblings, and descendants) of a chosen individual to generate a clean, isolated pedigree tree.
+* **Cemetery Registry Export**: Bulk-exports all stashed memorials in a selected cemetery as individual separate family lines.
+* **Smart Gender & Date Parsing**: Automatically infers sex (M/F) from relationship context and biography pronouns, and normalizes date strings to standard uppercase GEDCOM formats (e.g. `11 NOV 1925`).
 
 ---
 
