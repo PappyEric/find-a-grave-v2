@@ -205,7 +205,7 @@ def find_burial_urls(args) :
 	# toolbox.print_l()
 
 	# --- Create group list. ---
-	f = open(path_to_list[group], 'w')
+	f = open(path_to_list[group], 'w', encoding='utf-8')
 
 	# --- Loop index pages. ---
 	while (loop) :
@@ -338,9 +338,41 @@ def stash_group_page(args) :
 		page = page + family_slug + '_' + group + '-of_' + burial_slug
 	
 	# --- Stash the page. ---
-	f = open(page + '.html', 'w')
+	f = open(page + '.html', 'w', encoding='utf-8')
 	f.write(request.text)  # Stash page.
 	f.close()
+
+	# --- Save to SQLite database ---
+	try:
+		import database
+		database.init_db()
+		mem_data = parse_memorial_from_html(request.text, url)
+		if mem_data['cemetery_id']:
+			# Get cemetery from DB or add default with nickname
+			cemetery = database.get_cemetery(mem_data['cemetery_id'])
+			if not cemetery:
+				# Use a default abbreviation or extract from path if available
+				abrev = "CEM"
+				try:
+					# path_to_folder['cemetery'] is 'stash/cemetery_id_name'
+					# extract abrev from current running cemetery nickname
+					# In stash_graves.py, cemetery_abrev is in scope of caller but not here.
+					# Let's see if we can find it in the folder name or use a default.
+					folder_name = os.path.basename(path_to_folder['cemetery'])
+					if '-' in folder_name:
+						abrev = folder_name.split('-')[1].split('_')[0]
+				except:
+					pass
+				database.add_cemetery(mem_data['cemetery_id'], abrev)
+		
+		database.save_memorial(mem_data)
+		
+		# Save relationships
+		rels = extract_relationships_from_html(request.text, mem_data['id'])
+		for r in rels:
+			database.save_relationship(r['from_id'], r['to_id'], r['type'])
+	except Exception as e:
+		toolbox.print_l(f"  [SQLite Cache Warning] {e}")
 
 	# --- Add URL to master_urls dynamic list (Recreated with each group). ---
 	if 'burial' == group :
@@ -391,7 +423,7 @@ def build_master_list() :
 			folder_name = cemetery_folder + cemetery_id + '_' + group_name
 			list_name = folder_name + '_list.txt'
 			if os.path.isfile(list_name) :
-				f = open(list_name, 'r')
+				f = open(list_name, 'r', encoding='utf-8')
 				urls = f.read().splitlines()
 				f.close
 				master_urls += urls
@@ -407,7 +439,7 @@ def build_master_list() :
 def save_master_list() :
 
 	# --- Save the master list. --
-	f = open(path_to_stash + master_list, 'w')
+	f = open(path_to_stash + master_list, 'w', encoding='utf-8')
 	for url in master_urls :
 		f.write(url + '\n')
 	f.close()
@@ -427,7 +459,7 @@ def build_master_index() :
 
 	# --- Define vars. ---
 	cemetery_folders = glob.glob(path_to_stash + '/*_*/')
-	f = open(path_to_stash + master_index, 'w')
+	f = open(path_to_stash + master_index, 'w', encoding='utf-8')
 
 	# --- Build a master index of all group file names. ---
 	for cemetery_folder in cemetery_folders :
@@ -456,7 +488,7 @@ def read_master_index() :
 
 	# --- Read master file index. ---
 	if os.path.exists(path_to_stash + master_index) :  # Does index file exist?
-		f = open(path_to_stash + master_index, 'r')
+		f = open(path_to_stash + master_index, 'r', encoding='utf-8')
 		master_file_index = f.readlines()
 		f.close
 	else : 
@@ -486,7 +518,7 @@ def dig(args) :
 			cols_to_write.append(row_data[index][1])
 	else:
 		# Make burial soup.
-		f = open(burial_file_name, 'r')
+		f = open(burial_file_name, 'r', encoding='utf-8')
 		soup = BeautifulSoup(f.read(), 'html.parser')
 		f.close
 		# Loop columns. Position [index][0] is switch match for dig_this()).
@@ -830,8 +862,11 @@ def soup_find(soup, what, type='', value='') :
 			item = soup.find(id='bio-name')
 			if None == item : return ''
 			else : 
-				# Remove veteran label.
-				return toolbox.clean_string(item.text.replace('VVeteran', ''))
+				item_copy = BeautifulSoup(str(item), 'html.parser')
+				vet_el = item_copy.find(class_='icon-vet')
+				if vet_el:
+					vet_el.decompose()
+				return toolbox.clean_string(item_copy.text)
 		case 'mem_url' :
 			item = soup.head.find(attrs={'rel' : 'canonical'})
 			if None == item : return ''
@@ -1000,5 +1035,183 @@ def bold_last_name(full_name, formats) :
 	return parts
 # --------------------------------------------/
 
+
+# --------------------------------------------\
+#  Parse detailed name parts from the bio-name element.
+# --------------------------------------------/
+def parse_detailed_name(bio_name_el):
+	if not bio_name_el:
+		return {"prefix": "", "first_name": "", "middle_name": "", "maiden_name": "", "last_name": "", "suffix": "", "nickname": ""}
+	
+	# Duplicate element to prevent mutating original soup tree
+	el_copy = BeautifulSoup(str(bio_name_el), 'html.parser')
+	
+	# Remove veteran badge tag if present (class icon-vet contains hidden V and Veteran text)
+	vet_el = el_copy.find(class_='icon-vet')
+	if vet_el:
+		vet_el.decompose()
+	
+	# 1. Extract Maiden Name from italic <i> tags
+	maiden = ""
+	italic_el = el_copy.find('i')
+	if italic_el:
+		maiden = italic_el.text.strip()
+		italic_el.decompose() # Remove the tag so it doesn't interfere
+		
+	full_text = el_copy.text.strip()
+	
+	# 2. Extract Nickname from quotation marks
+	nickname = ""
+	nickname_match = re.search(r'["“\'‘]([^"”\'’]+)["”\'’]', full_text)
+	if nickname_match:
+		nickname = nickname_match.group(1).strip()
+		full_text = re.sub(r'["“\'‘][^"”\'’]+["”\'’]', ' ', full_text) # Strip it out
+		
+	# Clean up spacing
+	words = " ".join(full_text.split()).split()
+	
+	# 3. Match Suffixes (Jr., Sr., III, etc.)
+	suffixes = ['Jr.', 'Jr', 'Sr.', 'Sr', 'III', 'II', 'IV', 'V']
+	suffix = ""
+	if words and words[-1] in suffixes:
+		suffix = words[-1]
+		words = words[:-1]
+		
+	# 4. Match Prefixes (Rev., Dr., Sgt., etc.)
+	prefixes = ['Rev.', 'Rev', 'Dr.', 'Dr', 'Col.', 'Col', 'Sgt.', 'Sgt', 'Capt.', 'Capt', 'Lt.', 'Lt']
+	prefix = ""
+	if words and words[0] in prefixes:
+		prefix = words[0]
+		words = words[1:]
+		
+	# 5. Distribute remaining words
+	first, middle, last = "", "", ""
+	if len(words) == 1:
+		last = words[0]
+	elif len(words) == 2:
+		first = words[0]
+		last = words[1]
+	elif len(words) >= 3:
+		first = words[0]
+		last = words[-1]
+		middle = " ".join(words[1:-1])
+		
+	return {
+		"prefix": prefix,
+		"first_name": first,
+		"middle_name": middle,
+		"maiden_name": maiden,
+		"last_name": last,
+		"suffix": suffix,
+		"nickname": nickname
+	}
+
+# --------------------------------------------\
+#  Parse memorial from raw HTML content.
+# --------------------------------------------/
+def parse_memorial_from_html(html_content, memorial_url):
+	soup = BeautifulSoup(html_content, 'html.parser')
+	
+	# Extract memorial ID
+	mem_id = soup_find(soup, 'mem_id')
+	if not mem_id:
+		parts = memorial_url.rstrip('/').split('/')
+		mem_id = parts[-2] if len(parts) >= 2 and parts[-2].isdigit() else parts[-1]
+		
+	cemetery_url = soup_find(soup, 'cemetery')
+	cemetery_id = cemetery_url.split('/')[2] if cemetery_url and len(cemetery_url.split('/')) > 2 else ''
+	
+	real_name = soup_find(soup, 'full_name') or ''
+	
+	# Extract detailed name parts
+	bio_name_el = soup.find(id='bio-name')
+	name_parts = parse_detailed_name(bio_name_el)
+	
+	# Get surname
+	parts = memorial_url.split('/')
+	this_name_string = parts[-1]
+	url_name_parts = re.split('-|_', this_name_string)
+	surname = unquote(url_name_parts[-1].capitalize()) if url_name_parts else ''
+	
+	birth_date = soup_find(soup, 'birth') or ''
+	birth_location = soup_find(soup, 'birth_location') or ''
+	
+	death_date = soup_find(soup, 'death') or ''
+	death_date = re.sub('[ ][(].*?[)].*', '', death_date)
+	death_location = soup_find(soup, 'death_location') or ''
+	
+	veteran = 1 if soup_find(soup, 'veteran') else 0
+	cenotaph = 1 if soup_find(soup, 'cenotaph') else 0
+	
+	plot = soup_find(soup, 'plot') or ''
+	bio = soup_find(soup, 'bio') or ''
+	
+	g_map = soup_find(soup, 'google_map') or ''
+	lat = None
+	lng = None
+	if g_map and 'edit' not in g_map:
+		match = re.search('(?<=q=)..*(?=&)', g_map)
+		if match:
+			coords = match.group().split(',')
+			if len(coords) >= 2:
+				try:
+					lat = float(coords[0])
+					lng = float(coords[1])
+				except ValueError:
+					pass
+					
+	inscription = soup_find(soup, 'inscription') or ''
+	gravesite_details = soup_find(soup, 'gravesite-details') or ''
+	if not gravesite_details:
+		gravesite_details = soup_find(soup, 'gravesite_details') or ''
+		
+	result = {
+		'id': mem_id,
+		'cemetery_id': cemetery_id,
+		'name': real_name,
+		'surname': surname,
+		'birth_date': birth_date,
+		'birth_location': birth_location,
+		'death_date': death_date,
+		'death_location': death_location,
+		'veteran': veteran,
+		'cenotaph': cenotaph,
+		'plot': plot,
+		'bio': bio,
+		'gps_lat': lat,
+		'gps_lng': lng,
+		'inscription': inscription,
+		'gravesite_details': gravesite_details,
+		'url': memorial_url
+	}
+	# Merge name parts into result
+	result.update(name_parts)
+	return result
+
+# --------------------------------------------\
+#  Extract relationships from raw HTML content.
+# --------------------------------------------/
+def extract_relationships_from_html(html_content, memorial_id):
+	soup = BeautifulSoup(html_content, 'html.parser')
+	relationships = []
+	
+	for group_name in ['parent', 'spouse', 'child', 'sibling', 'half-sibling']:
+		soup_tag = group_name + 's' if group_name != 'half-sibling' else 'half-siblings'
+		people = soup_find(soup, soup_tag)
+		if not people or people == '':
+			continue
+			
+		for person in people:
+			url = soup_find(soup, 'person_url', '', person)
+			if url:
+				parts = url.split('/')
+				if len(parts) >= 3:
+					rel_id = parts[2]
+					relationships.append({
+						'from_id': memorial_id,
+						'to_id': rel_id,
+						'type': group_name
+					})
+	return relationships
 
 # ------------------------------------------------/

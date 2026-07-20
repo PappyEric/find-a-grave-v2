@@ -159,27 +159,57 @@ def log(start:bool = True) :
 #  Given an open session, request a URL.
 #  Last update: 2024/05/28 @ 10:30am.
 # --------------------------------------------\
+class MockResponse:
+	def __init__(self, text, status_code=200):
+		self.text = text
+		self.content = text.encode('utf-8', errors='ignore')
+		self.status_code = status_code
+
 def get_url(session, url) :
-
-	# --- Vars. ---
 	tries = 3
-
-	# --- Request URL. ---
-	while tries > 0 :  # Multiple request tries needed?
-		request = session.get(url)
-		if request.status_code == 200 :  # Request worked.
-			return request
-		else :
-			print_l('Error: ' + url)
+	while tries > 0 :
+		try:
+			# Check if session is a DrissionPage (has 'html' and 'get' attributes)
+			if hasattr(session, 'html') and hasattr(session, 'get'):
+				# DrissionPage get() returns a boolean or None
+				success = session.get(url)
+				
+				# Check if loaded page is Cloudflare challenge
+				title = session.title
+				if "Just a moment..." in title or "Cloudflare" in title:
+					print_l(f"Cloudflare challenge detected: '{title}'. Waiting 5 seconds...")
+					pause(5, 7, True)
+					title = session.title
+					if "Just a moment..." in title or "Cloudflare" in title:
+						raise RuntimeError("Cloudflare challenge not bypassed.")
+				
+				# Return MockResponse
+				return MockResponse(session.html, 200)
+			else:
+				# Fallback to requests if session is a standard requests.Session
+				request = session.get(url, timeout=15)
+				if request.status_code == 200 :
+					return request
+				elif request.status_code == 429:
+					print_l('Error 429: Too Many Requests (Rate Limited) for ' + url)
+					tries -= 1
+					if tries > 0:
+						print_l(f'Waiting 15 seconds before retry... ({tries} retries left)')
+						pause(15, 20, True)
+				else :
+					print_l('Error status ' + str(request.status_code) + ': ' + url)
+					tries -= 1
+					if tries > 0 :
+						print_l(str(tries) + ' retries remaining. Trying again.')
+						pause(5, 10, True)
+		except Exception as e:
+			print_l('Network Connection Error: ' + str(e))
 			tries -= 1
-			if 0 == tries :
-				print_l('No retries remain. Giving up. Early exit.')
-				quit()
-			else :
-				print_l(str(tries) + ' retries remaining. Trying again. ')
-				pause(3, 5, True)  # Pause.
+			if tries > 0:
+				print_l(str(tries) + ' retries remaining. Trying again.')
+				pause(5, 10, True)
 	
-	return False
+	raise RuntimeError(f"Failed to fetch {url} after 3 attempts.")
 # --------------------------------------------/
 
 

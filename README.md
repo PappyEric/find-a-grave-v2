@@ -1,79 +1,136 @@
-# Find a Grave Tools
-Create a local stash of "Find a Grave" (https://www.findagrave.com) memorial pages.
-Extract/report data.
-## Last updated
-2025-10-15
+# Find a Grave Tools & Genealogy Workstation
 
-## Background
-These python scripts were created to help Cindy Foster @ iHuntDeadPeople.com with [one of her genealogy research projects](https://ihuntdeadpeople.com/let-us-help-with-your-genealogy-research/).
+Create a local, offline media-rich archive of Find a Grave (https://www.findagrave.com) memorial pages and analyze relationships to build family trees.
 
-Cindy is creating a book about the five protestant cemeteries in Sherrill, Iowa. The book catalogs all of the burials in those cemeteries (as well as connected family burials). Additionally, her book presents a collection of data and stories around the lives of those people.
+## Last Updated
+2026-07-19 (Updated with Local Web GUI, SQLite Caching, GPS Scraping, Detailed Name Parsing, Vis.js Pedigree Trees, & On-Demand Media Vault)
 
-You can read more about Cindy and her work at https://ihuntdeadpeople.com/about/
+This project builds upon the original command-line scraping scripts developed by **Doug Foster** (https://dougfoster.me). It has been upgraded into a premium genealogy research workstation featuring a local Flask Web GUI dashboard, SQLite caching, background browser recycling, automated Cloudflare challenge bypass, and deep extraction capabilities.
 
-## Description
-Unfortunately 'Find a Grave' does not expose a public [API](https://en.wikipedia.org/wiki/API) to programatically extract information. If we want to mine data from the website for a genealogy project, we have to [scrape](https://en.wikipedia.org/wiki/Web_scraping) pages.
+---
 
-Rather than continously hit live website pages for data, pages needed for a project are pulled once and stashed locally. The analysis script(s) use these stashed pages.
+## Key Features & Capabilities
 
-stash_graves.py is used to:
-- PULL specific pages for specifc groups in a collection of cemeteries.
-        - Leverages the [requests](https://pypi.org/project/requests/) Python package
-	- An instruction file contains the cemeteries and groups to pull.
-	- Cemeteries are identified by the same numeric ID 'Find a Grave' uses. 
-	- Groups are: burial, parent, spouse, child, sibling, half-sibling
-- STASH the pulled pages in a local directory (much like how a cache works).
+### 1. The Local Web GUI
+A modern, dark-mode web application served locally on your computer at `http://127.0.0.1:5050`. It provides a visual dashboard to:
+* **Manage Cemeteries**: Add cemeteries to your workstation simply by entering their numeric Find a Grave ID (names, locations, and GPS details are fetched automatically).
+* **Interactive Scraper Controls**: Configure relationship depth parameters and trigger scrapes via explicit controls.
+* **Real-Time Monitor**: Watch scraping progress with visual progress bars, status indicators, and live scrolling log consoles.
+* **Turnstile Bypass**: Automatically solve and bypass Cloudflare Turnstile Challenges in the background using a recycling headless Chrome session via `DrissionPage`.
+* **Stashed Memorial Explorer**: Search, filter, and browse stashed burials in an interactive, paginated data grid. Click any row to view biographies, detailed dates, location details, and structured family relationship mappings.
+* **Click-to-Export**: Compile and generate the output Excel spreadsheet (`output/burials.xlsx`) with a single click.
 
-dig_graves.py is used to:
-- EXTRACT the data
-	- Leverages the [Beautiful Soup](https://pypi.org/project/beautifulsoup4/) Python package
-- REPORT data to a saved Excel spreadsheet
-	- Uses the [XlsxWriter](https://pypi.org/project/XlsxWriter/) Python package
+### 2. Deep Name Parsing & Anatomy
+Instead of saving raw full names, the workstation parses every memorial's name into 7 distinct parts:
+* **Prefix** (e.g. `Dr.`, `Rev.`, `Col.`)
+* **First Name**
+* **Middle Name**
+* **Maiden Name** (extracted from italicized `<i>` HTML structures)
+* **Last Name**
+* **Suffix** (e.g. `Jr.`, `III`, `Sr.`)
+* **Nickname** (extracted from quote-wrapped regex matches, e.g. `“Skeet”`)
 
-## Operation
-1. Edit 'instructions/stash_graves.txt' to include the cemeteries and groups to pull from 'Find a Grave'.
-   - Do not forget to read and follow the 'Schema' rules section. This includes creating a unique abbreviation for each
-     cemetery (e.g. PRES, UMC, ...) and appending it after the cemetery id (e.g. 2353265-PRES, 2136908-UMC, ...). It will
-     be used as the tab name on the final spreadsheet created by 'dig-graves.py.'
-   - The default operation is to create a log file for each cemetery. It is located in the /logs folder. Tn not create a
-     log, preceed the the word "log" (which is on a line by itself) with the # comment symbol. 
-2. Run 'python stash_graves.py' to create a local stash of the pages.
-   - Stashes are named by cemetery and located in the /stash folder. If you move or rename them, 'dig-graves.py' will fail.
-3. Edit 'instructions/dig_graves.txt' to include which cemeteries to pull from the stashed pages.
-4. Run 'python dig_graves.py'.
-5. The output spreadsheet will be in '/output/burials.xlsx'.
+### 3. Geographic Mapping & GPS
+* Extracts the cemetery's official address/location (e.g., `Cabell County, West Virginia, USA`).
+* Scrapes the exact latitude and longitude coordinates from the cemetery directions link.
+* Embeds clickable Google Maps link in the GUI dashboard cemetery list cards.
 
-## Python Notes
-1.  These scripts were run on Mac OS 26.0.1, inside a venv (Python virtual environment), using Python version 3.14.0 [2025-10-15].
-2.  Make sure you have Python installed. Mine is in /usr/bin and was installed using the Homebrew (https://brew.sh) package manager.
-3.  Make a project directory on your computer. Download all the files from this repo into the directory.
-4.  Create a .venv directory in your project directory using "python3 -m venv .venv"
-5.  From the project directory, activate the venv using "source .venv/bin/activate" (use "deactivate" to leave the venv)
-6.  Your command line prompt will change now be preceeded with a (.venv): e.g. doug% will become (.venv) doug%
-7.  When the venv is created, the "pip3" command will be installed in .venv/bin/pip3
-8.  Install the packages: "pip3 install requests", "pip3 install beautifulsoup4", "pip3 install xlsxwriter"
-9.  List all packages in your venv using "pip3 list"
-    Package            Version
-    ------------------ ---------
-    beautifulsoup4     4.14.2
-    certifi            2025.10.5
-    charset-normalizer 3.4.4
-    idna               3.11
-    pip                25.2
-    requests           2.32.5
-    soupsieve          2.8
-    typing_extensions  4.15.0
-    urllib3            2.5.0
-    xlsxwriter         3.2.9
-10. run 'stash_graves.py' and 'dig_graves.py'
+### 4. Incremental Scrapes & Multi-Phase Tree Building
+The workstation database is designed for **incremental, multi-phase scrapes**. You do not need to scrape everything at once:
+* **Phase 1 (Burials Only)**: Select a cemetery, check only the `Burial (Required)` group, and click **Start Scrape**. The tool will crawl the cemetery's index, queue all burials, and download their profiles. During this phase, it automatically extracts all family relationships (Parents, Spouses, Children, Siblings, Half-siblings) and stores their connections in the `relationships` table.
+* **Phase 2 (Expanding the Tree)**: At any point in the future, you can select the same cemetery, check additional relationship boxes (e.g., `Parents` or `Siblings`), and click **Start Scrape**. The workstation will skip crawling the index pages, query the existing relationship table for any missing family profiles, enqueue their URLs, and download them. 
+* This allows you to expand your genealogy database layer-by-layer without ever downloading the same memorial page twice.
 
-## Bug fixes / Further development
-As mentioned earlier, these scripts were written for a specific project. They are not intended to be an open-source project. Please use them as-is and do not expect on-going support or updates. Hopefully though they will provide you with inspiration for your own versions.
+### 5. Interactive Relationship Graphing (Family Trees)
+Directly in the Web GUI's Biography & Details modal, switch to the **🕸️ Interactive Family Tree** tab to visualize relationships dynamically:
+* **Pedigree Layout**: Automatically renders family lines in a vertical top-to-bottom layout (Ancestors on top, Spouses & Siblings in the middle, Descendants at the bottom).
+* **Generation Tickers**: Adjust display depth on-the-fly using independent **Ancestors** and **Descendants** generation selectors (ranges from `0` to `10` generations).
+* **Orthogonal Bezier Flowlines**: Connects relatives using vertical Bezier connectors for clean, readable paths that mimic professional family tree diagrams.
+* **Click-to-Refocus**: Click any relative in the graph to instantly reload the dashboard details modal centered on that person.
+
+### 6. On-Demand Photo Archiving & Offline Media Vault
+* Maintain a local media vault of high-resolution gravestone photos and face portraits under `photos/<memorial_id>/`.
+* **Bandwidth & Storage Efficient**: Zero photos are downloaded during automatic scrapes. Instead, you click the **📥 Download Pictures from Find A Grave** button on any profile card to pull photos on-demand.
+* **Strict Filtering**: Automatically matches URLs against the memorial ID prefix to ensure only relevant deceased/tombstone photos are saved, filtering out side-panel thumbnails for other relatives.
+* **Inline Gallery Viewer**: Displays a horizontal image reel at the top of the details modal. Clicking any photo opens the original high-resolution file in a new tab.
+
+### 7. Veteran Badge Parsing
+* Automatically deconflicts the Find a Grave veteran military honor badge (`<b class="icon-vet">`) from name text, preventing letters like `VVeteran` from corrupting the parsed **Last Name** field.
+
+---
+
+## Operations Guide
+
+### Option A: Running the Web GUI (Recommended)
+1. Ensure your Python virtual environment is active and dependencies are installed (see Python Notes below).
+2. Run the launcher script:
+   ```powershell
+   python run_gui.py
+   ```
+3. This will automatically:
+   * Scan your system and terminate any zombie automated browser processes.
+   * Initialize the SQLite database at `stash/find_a_grave_v2.db`.
+   * Scan your `stash/` folder and import any existing stashed HTML files.
+   * Spin up the Flask server and launch your default browser to `http://127.0.0.1:5050`.
+4. **Scraping a Cemetery**:
+   * Enter the numeric **Cemetery ID** under *Cemeteries Configuration* and click **Add Cemetery**.
+   * Pick your target cemetery from the dropdown selector.
+   * Tick the checkbox variables for the relationship lines you wish to download (e.g. Spouses, Children).
+   * Click **⚡ Start Scrape** to initiate.
+5. **Syncing Metadata**:
+   * Click the **`🔄 Fetch Missing Locations & GPS`** button to loop through all cemeteries in your database and fetch their names, addresses, and coordinates in the background.
+
+### Option B: Running the Command Line Scripts
+If you prefer running command line scripts, the scraper is fully backwards-compatible:
+1. Edit `instructions/stash_graves.txt` to include the cemeteries and groups to pull from 'Find a Grave' (E.g. `2748319 : burial, parent, spouse`).
+2. Run the stasher:
+   ```powershell
+   python stash_graves.py
+   ```
+3. Edit `instructions/dig_graves.txt` to specify which stashed cemeteries to compile.
+4. Run the compiler:
+   ```powershell
+   python dig_graves.py
+   ```
+5. The output spreadsheet will be generated at `output/burials.xlsx` with worksheet tabs named by Cemetery ID.
+
+---
+
+## Python Notes & Setup
+
+These scripts are fully compatible with Python versions 3.12 to 3.14. Follow these setup instructions:
+
+1. Create a project directory and download/clone this repository.
+2. Initialize a Python virtual environment:
+   ```powershell
+   python -m venv .venv
+   ```
+3. Activate the virtual environment:
+   * **Windows Powershell**: `.venv\Scripts\Activate.ps1`
+   * **macOS/Linux Terminal**: `source .venv/bin/activate`
+4. Install the required libraries:
+   ```powershell
+   pip install requests beautifulsoup4 xlsxwriter flask drissionpage setuptools psutil
+   ```
+5. Run the web interface:
+   ```powershell
+   python run_gui.py
+   ```
+
+### Installed Package Manifest
+* `flask`: Web framework serving the API and HTML dashboard.
+* `drissionpage`: Automation library used to control a headless Chrome instance natively via CDP to bypass Cloudflare protection without version mismatch errors.
+* `xlsxwriter`: Excel spreadsheet generation.
+* `beautifulsoup4`: HTML DOM parsing.
+* `psutil`: Automated background process cleanup.
+
+---
+
+## Credits & Support
+* **Original Creator**: Doug Foster (https://dougfoster.me).
+* **Updates**: Upgraded with local SQLite database caching, parallel scraping queue, browser recycling, automated self-healing, detailed name-parsing (prefixes, suffixes, maiden names, nicknames), GPS extraction, and an interactive dark-mode Web GUI dashboard.
+
 ## License
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
 A copy of the GNU General Public License is [included](LICENSE.txt) in this repository. Please also refer to https://www.gnu.org/licenses/.
-## About me
-You can lern more about the developer at https://dougfoster.me.

@@ -142,7 +142,7 @@ for cemetery_id, groups in instructions.items() : # Loop cemeteries.
 			num_burials = len(burial_urls)
 		else :
 			if 0 == len(burial_urls) :  # Get the list only once.
-				f = open(path_to_list['burial'], 'r')
+				f = open(path_to_list['burial'], 'r', encoding='utf-8')
 				burial_urls = f.read().splitlines()
 				f.close()
 				num_burials = len(burial_urls)
@@ -153,7 +153,7 @@ for cemetery_id, groups in instructions.items() : # Loop cemeteries.
 				toolbox.print_l('Searching ' + str(len(burial_urls)) + 
 		  			' burials in cemetery "' + cemetery_id + '", retrieving "' 
 					+ group + '" pages ...')
-				f = open(path_to_list[group], 'w')  # Open family list file.
+				f = open(path_to_list[group], 'w', encoding='utf-8')  # Open family list file.
 		this_burial = 1
 		for burial_url in burial_urls :  
 			if 'burial' == group :

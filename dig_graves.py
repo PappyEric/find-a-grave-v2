@@ -90,9 +90,9 @@ for cemetery_id, groups in instructions.items() :
 	# --- Build a list of burials. ---
 	burials = []
 	lines = []
-	f = open(burial_list, 'r')
+	f = open(burial_list, 'r', encoding='utf-8')
 	lines += f.read().splitlines()
-	f.close
+	f.close()
 	# Set file path for each burial file.
 	for line in lines :
 		line = '_'.join(line.rsplit('/',1))

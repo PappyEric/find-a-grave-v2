@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find a Grave Tools Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* --- Header --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* --- Stats Row --- */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            background-color: rgba(59, 130, 246, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--accent-blue);
+        }
+
+        .stat-icon.green {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--accent-green);
+        }
+
+        .stat-icon.purple {
+            background-color: rgba(139, 92, 246, 0.1);
+            color: var(--accent-purple);
+        }
+
+        .stat-details h3 {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-details p {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        /* --- Grid Layout --- */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 2rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* --- Forms & Inputs --- */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        input, select {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            outline: none;
+            transition: var(--transition);
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .row-inputs {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+        }
+
+        /* --- Buttons --- */
+        .btn {
+            background-color: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        .btn-green {
+            background-color: var(--accent-green);
+        }
+
+        .btn-red {
+            background-color: var(--accent-red);
+        }
+
+        .btn-small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+
+        /* --- Cemetery List --- */
+        .cemetery-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .cemetery-item {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .cemetery-item:hover {
+            border-color: #475569;
+        }
+
+        .cemetery-info h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .cemetery-info p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .cemetery-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* --- Scraper Controls & Log --- */
+        .scraper-status-bar {
+            background-color: #0f172a;
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 10px;
+            background-color: #0f172a;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            transition: width 0.4s ease;
+        }
+
+        .log-console {
+            background-color: #020617;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            height: 250px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #38bdf8;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        /* --- Groups Checkboxes --- */
+        .groups-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .checkbox-label input {
+            cursor: pointer;
+        }
+
+        /* --- Explorer/Grid View --- */
+        .explorer-section {
+            grid-column: span 2;
+        }
+
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .search-wrapper {
+            flex-grow: 1;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .search-wrapper input {
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            text-align: left;
+        }
+
+        th {
+            background-color: #0f172a;
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+            cursor: pointer;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 1rem;
+        }
+
+        /* --- Modal details --- */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            max-width: 800px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .modal-footer {
+            padding: 1.25rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
+        }
+
+        .detail-block h5 {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+        }
+
+        .detail-block p {
+            font-size: 0.95rem;
+        }
+
+        .detail-block.full-width {
+            grid-column: span 2;
+        }
+
+        .rel-card {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+        }
+
+        .rel-card a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .rel-card a:hover {
+            text-decoration: underline;
+        }
+
+        .cemetery-badge {
+            background-color: rgba(139, 92, 246, 0.2);
+            color: #c084fc;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .gallery-img {
+            height: 180px;
+            max-width: 250px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            object-fit: cover;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .gallery-img:hover {
+            transform: scale(1.03);
+            border-color: var(--accent-blue);
+        }
+
+        .close-btn {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+
+        .close-btn:hover {
+            color: var(--text-primary);
+        }
+    </style>
+    <!-- Vis.js Network standalone library -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div>
+                <h1>Find a Grave Scraping & Analysis Tools</h1>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Genealogy Burials Collection & Family Tree Stash Manager</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-green" id="exportBtn">
+                    📊 Generate Excel Report
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon">🪦</div>
+                <div class="stat-details">
+                    <h3>Cemeteries</h3>
+                    <p id="statCemeteries">0</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon green">👥</div>
+                <div class="stat-details">
+                    <h3>Stashed Memorials</h3>
+                    <p id="statMemorials">0</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon purple">🕸️</div>
+                <div class="stat-details">
+                    <h3>Scraper Queue</h3>
+                    <p id="statQueue">0 pending</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🤖</div>
+                <div class="stat-details">
+                    <h3>Scraper Status</h3>
+                    <p id="statStatus">Idle</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid Layout -->
+        <div class="dashboard-grid">
+            
+            <!-- Left Column: Cemetery manager -->
+            <div class="card">
+                <div class="card-title">Cemeteries Configuration</div>
+                
+                <div class="form-group">
+                    <label for="cemId">Cemetery ID (numeric)</label>
+                    <input type="text" id="cemId" placeholder="e.g. 2748319">
+                </div>
+                
+                <button class="btn" id="addCemBtn">➕ Add Cemetery</button>
+                <button class="btn btn-secondary" id="syncCemBtn" style="margin-top: 0.5rem; width: 100%;">🔄 Fetch Missing Locations & GPS</button>
+                
+                <div class="cemetery-list" id="cemList">
+                    <!-- Loaded dynamically -->
+                </div>
+            </div>
+
+            <!-- Right Column: Scraper log and control panel -->
+            <div class="card">
+                <div class="card-title">Active Scraping Job Manager</div>
+                
+                <div class="form-group">
+                    <label>Groups to Scrape & Process</label>
+                    <div class="groups-grid">
+                        <label class="checkbox-label"><input type="checkbox" id="groupBurial" checked disabled> Burial (Required)</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupParent" checked> Parents</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupSpouse" checked> Spouses</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupChild"> Children</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupSibling"> Siblings</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupHalfSibling"> Half-Siblings</label>
+                    </div>
+                </div>
+
+                <div class="form-group" style="display: flex; gap: 0.5rem; align-items: flex-end; margin-bottom: 1.25rem;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
+                        <label for="targetCemSelect">Target Cemetery</label>
+                        <select id="targetCemSelect" style="width: 100%; height: 38px;">
+                            <option value="">Select a cemetery...</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-green" id="startScrapeBtn" style="height: 38px; display: flex; align-items: center; justify-content: center; gap: 0.25rem; white-space: nowrap;">
+                        ⚡ Start Scrape
+                    </button>
+                </div>
+
+                <div class="scraper-status-bar">
+                    <div id="jobDetails">No active scraping run.</div>
+                    <div class="cemetery-actions" id="scraperJobControls" style="display: none;">
+                        <button class="btn btn-small" id="pauseBtn">⏸️ Pause</button>
+                        <button class="btn btn-small btn-red" id="cancelBtn">⏹️ Cancel</button>
+                    </div>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+
+                <div class="log-console" id="logConsole">
+                    <!-- Logs stream -->
+                    [Console] Waiting for active scraping job...
+                </div>
+            </div>
+
+            <!-- Explorer/Table View (full width bottom) -->
+            <div class="card explorer-section">
+                <div class="card-title">Stashed Memorial Explorer</div>
+                
+                <div class="table-controls">
+                    <div class="search-wrapper">
+                        <input type="text" id="searchInput" placeholder="Search stashed burials by name, ID or plot...">
+                        <select id="filterCemSelect">
+                            <option value="">All Cemeteries</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" id="searchBtn">🔍 Search</button>
+                </div>
+
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>First</th>
+                                <th>Middle</th>
+                                <th>Maiden</th>
+                                <th>Last</th>
+                                <th>Nickname</th>
+                                <th>ID</th>
+                                <th>Cemetery</th>
+                                <th>Birth</th>
+                                <th>Death</th>
+                                <th>Plot</th>
+                                <th>GPS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="memorialTableBody">
+                            <tr>
+                                <td colspan="12" style="text-align: center; color: var(--text-secondary);">No stashed memorials available. Add a cemetery and start scraping.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination">
+                    <button class="btn btn-secondary btn-small" id="prevPageBtn" disabled>Previous</button>
+                    <span id="pageIndicator" style="font-size: 0.9rem; color: var(--text-secondary);">Page 1</span>
+                    <button class="btn btn-secondary btn-small" id="nextPageBtn" disabled>Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memorial Details Modal -->
+    <div class="modal" id="detailsModal">
+        <div class="modal-content" style="max-width: 1400px; width: 95%;">
+            <div class="modal-header">
+                <h3 id="modalName" style="font-size: 1.25rem;">John Doe</h3>
+                <span class="close-btn" id="closeModalBtn">&times;</span>
+            </div>
+            <div class="modal-body" style="padding-top: 0.5rem;">
+                <!-- Tab Headers -->
+                <div class="modal-tabs" style="display: flex; gap: 0.5rem; border-bottom: 1px solid var(--border-color); margin-bottom: 1.25rem; padding-bottom: 0.25rem;">
+                    <button class="tab-btn active" id="tabDetailsBtn" style="padding: 0.5rem 1.25rem; background: none; border: none; border-bottom: 2px solid var(--accent-blue); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: var(--transition);">
+                        🪦 Biography & Details
+                    </button>
+                    <button class="tab-btn" id="tabGraphBtn" style="padding: 0.5rem 1.25rem; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: var(--transition);">
+                        🕸️ Interactive Family Tree
+                    </button>
+                </div>
+
+                <!-- Tab 1: Biography & Details -->
+                <div id="tabDetailsContent" class="tab-content-panel active">
+                    <!-- Photo Header & Control -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                        <h6 style="color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; margin: 0; letter-spacing: 0.5px;">📸 Offline Media Vault</h6>
+                        <button class="btn btn-secondary btn-small" id="downloadPhotosBtn" style="font-size: 0.8rem; padding: 0.25rem 0.75rem; height: 28px; display: flex; align-items: center; justify-content: center; gap: 0.25rem;">
+                            📥 Download Pictures from Find A Grave
+                        </button>
+                    </div>
+                    
+                    <!-- Photo Gallery (Vault) -->
+                    <div id="modalPhotoContainer" style="display: none; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                        <div id="modalPhotoGallery" style="display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: thin;">
+                            <!-- Photos will be dynamically added here -->
+                        </div>
+                    </div>
+
+                    <div class="modal-grid">
+                        <div class="detail-block">
+                            <h5>Find a Grave ID</h5>
+                            <p id="modalId">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Cemetery</h5>
+                            <p id="modalCemetery">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Birth Date & Location</h5>
+                            <p id="modalBirth">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Death Date & Location</h5>
+                            <p id="modalDeath">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Prefix / Suffix</h5>
+                            <p id="modalPrefixSuffix">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>First & Middle</h5>
+                            <p id="modalFirstMiddle">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Maiden Name</h5>
+                            <p id="modalMaidenName">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Last Name</h5>
+                            <p id="modalLastName">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Nickname</h5>
+                            <p id="modalNickname">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>Plot Details</h5>
+                            <p id="modalPlot">-</p>
+                        </div>
+                        <div class="detail-block">
+                            <h5>GPS Position</h5>
+                            <p id="modalGps">-</p>
+                        </div>
+                        <div class="detail-block full-width">
+                            <h5>Inscription</h5>
+                            <p id="modalInscription" style="font-style: italic; white-space: pre-line;">-</p>
+                        </div>
+                        <div class="detail-block full-width">
+                            <h5>Biography / Notes</h5>
+                            <p id="modalBio" style="white-space: pre-line;">-</p>
+                        </div>
+                        <div class="detail-block full-width">
+                            <h5>Stashed Relationships</h5>
+                            <div id="modalRelations" style="margin-top: 0.5rem;">
+                                <!-- Relationships lists -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Interactive Family Tree -->
+                <div id="tabGraphContent" class="tab-content-panel" style="display: none; height: 650px; position: relative;">
+                    <div id="familyGraph" style="width: 100%; height: 100%; border-radius: 6px; background-color: #151515; border: 1px solid var(--border-color);"></div>
+                    <div style="position: absolute; top: 10px; left: 10px; background: rgba(20, 20, 20, 0.85); padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.75rem; color: var(--text-secondary); pointer-events: none; border: 1px solid var(--border-color); display: flex; flex-wrap: wrap; gap: 0.75rem; z-index: 10;">
+                        <div style="display: flex; align-items: center; gap: 0.25rem;"><span style="display: inline-block; width: 10px; height: 10px; background: #007bff; border-radius: 50%;"></span> Focus</div>
+                        <div style="display: flex; align-items: center; gap: 0.25rem;"><span style="display: inline-block; width: 10px; height: 10px; background: #28a745; border-radius: 50%;"></span> Ancestors</div>
+                        <div style="display: flex; align-items: center; gap: 0.25rem;"><span style="display: inline-block; width: 10px; height: 10px; background: #6f42c1; border-radius: 50%;"></span> Spouses</div>
+                        <div style="display: flex; align-items: center; gap: 0.25rem;"><span style="display: inline-block; width: 10px; height: 10px; background: #fd7e14; border-radius: 50%;"></span> Descendants</div>
+                        <div style="display: flex; align-items: center; gap: 0.25rem;"><span style="display: inline-block; width: 10px; height: 10px; background: #17a2b8; border-radius: 50%;"></span> Siblings</div>
+                    </div>
+                    <!-- Generation Depth Control Overlay -->
+                    <div style="position: absolute; top: 10px; right: 10px; background: rgba(20, 20, 20, 0.85); padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.75rem; color: var(--text-primary); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 0.5rem; z-index: 10; width: 180px;">
+                        <div style="font-weight: 600; text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.25rem; margin-bottom: 0.25rem; color: var(--text-secondary);">🌳 Generation Depth</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Ancestors:</span>
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <button class="btn btn-secondary btn-small" id="decAncestorsBtn" style="padding: 0 0.4rem; height: 20px; font-weight: bold; cursor: pointer; border-radius: 3px;">-</button>
+                                <span id="ancestorsCountVal" style="font-weight: 600; width: 10px; text-align: center;">2</span>
+                                <button class="btn btn-secondary btn-small" id="incAncestorsBtn" style="padding: 0 0.4rem; height: 20px; font-weight: bold; cursor: pointer; border-radius: 3px;">+</button>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Descendants:</span>
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <button class="btn btn-secondary btn-small" id="decDescendantsBtn" style="padding: 0 0.4rem; height: 20px; font-weight: bold; cursor: pointer; border-radius: 3px;">-</button>
+                                <span id="descendantsCountVal" style="font-weight: 600; width: 10px; text-align: center;">2</span>
+                                <button class="btn btn-secondary btn-small" id="incDescendantsBtn" style="padding: 0 0.4rem; height: 20px; font-weight: bold; cursor: pointer; border-radius: 3px;">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeModalFooterBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client-side Dashboard Logic -->
+    <script>
+        // State
+        let cemeteries = [];
+        let curPage = 1;
+        let limit = 20;
+        let activeScrapeCemId = null;
+        let activeMemorialId = null;
+        let familyNetworkInstance = null;
+        let ancestorDepth = 2;
+        let descendantDepth = 2;
+
+        // Elements
+        const statCemeteries = document.getElementById('statCemeteries');
+        const statMemorials = document.getElementById('statMemorials');
+        const statQueue = document.getElementById('statQueue');
+        const statStatus = document.getElementById('statStatus');
+        
+        const cemIdInput = document.getElementById('cemId');
+        const addCemBtn = document.getElementById('addCemBtn');
+        const syncCemBtn = document.getElementById('syncCemBtn');
+        const cemList = document.getElementById('cemList');
+        
+        const targetCemSelect = document.getElementById('targetCemSelect');
+        const startScrapeBtn = document.getElementById('startScrapeBtn');
+        const filterCemSelect = document.getElementById('filterCemSelect');
+        
+        const logConsole = document.getElementById('logConsole');
+        const progressBar = document.getElementById('progressBar');
+        const jobDetails = document.getElementById('jobDetails');
+        const scraperJobControls = document.getElementById('scraperJobControls');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const filterCemSelectEl = document.getElementById('filterCemSelect');
+        const memorialTableBody = document.getElementById('memorialTableBody');
+        const prevPageBtn = document.getElementById('prevPageBtn');
+        const nextPageBtn = document.getElementById('nextPageBtn');
+        const pageIndicator = document.getElementById('pageIndicator');
+        
+        const detailsModal = document.getElementById('detailsModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const closeModalFooterBtn = document.getElementById('closeModalFooterBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        
+        const tabDetailsBtn = document.getElementById('tabDetailsBtn');
+        const tabGraphBtn = document.getElementById('tabGraphBtn');
+        const tabDetailsContent = document.getElementById('tabDetailsContent');
+        const tabGraphContent = document.getElementById('tabGraphContent');
+        const downloadPhotosBtn = document.getElementById('downloadPhotosBtn');
+
+        // Initial Load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadCemeteries();
+            loadMemorials();
+            startPollingScraper();
+        });
+
+        // Load Cemeteries
+        async function loadCemeteries() {
+            try {
+                const response = await fetch('/api/cemeteries');
+                cemeteries = await response.json();
+                
+                // Update stats
+                statCemeteries.textContent = cemeteries.length;
+                
+                // Render List
+                cemList.innerHTML = '';
+                targetCemSelect.innerHTML = '<option value="">Select a cemetery...</option>';
+                filterCemSelect.innerHTML = '<option value="">All Cemeteries</option>';
+                
+                cemeteries.forEach(cem => {
+                    const totalPending = cem.queue_stats.pending + cem.queue_stats.downloading;
+                    const item = document.createElement('div');
+                    item.className = 'cemetery-item';
+                    
+                    const gpsHtml = (cem.gps_lat && cem.gps_lng) ? 
+                        `• GPS: <a href="https://maps.google.com/?q=${cem.gps_lat},${cem.gps_lng}" target="_blank" style="color: var(--accent-blue); text-decoration: none;">${cem.gps_lat.toFixed(5)}, ${cem.gps_lng.toFixed(5)}</a>` : '';
+                        
+                    item.innerHTML = `
+                        <div class="cemetery-info" style="flex: 1;">
+                            <h4>${cem.name || 'Validating...'} (${cem.nickname})</h4>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0;">
+                                ${cem.location ? `📍 ${cem.location}` : 'Location: Not loaded yet'} ${gpsHtml}
+                            </p>
+                            <p style="font-size: 0.85rem;">ID: ${cem.id} • ${cem.burial_count} stashed • ${totalPending} queued</p>
+                        </div>
+                        <div class="cemetery-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn btn-small btn-green" onclick="triggerScrape('${cem.id}')">⚡ Scrape</button>
+                            <button class="btn btn-small btn-red" onclick="deleteCemetery('${cem.id}')">🗑️</button>
+                        </div>
+                    `;
+                    cemList.appendChild(item);
+                    
+                    // Dropdowns
+                    const opt1 = document.createElement('option');
+                    opt1.value = cem.id;
+                    opt1.textContent = `${cem.name || cem.id} (${cem.nickname})`;
+                    targetCemSelect.appendChild(opt1);
+                    
+                    const opt2 = document.createElement('option');
+                    opt2.value = cem.id;
+                    opt2.textContent = `${cem.nickname} - ${cem.name || cem.id}`;
+                    filterCemSelect.appendChild(opt2);
+                });
+            } catch (err) {
+                console.error("Error loading cemeteries", err);
+            }
+        }
+
+        // Add Cemetery
+        addCemBtn.addEventListener('click', async () => {
+            const id = cemIdInput.value.trim();
+            
+            if(!id) {
+                alert("Please specify a numeric Cemetery ID.");
+                return;
+            }
+            
+            addCemBtn.disabled = true;
+            addCemBtn.textContent = "Adding...";
+            
+            try {
+                const res = await fetch('/api/cemeteries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                
+                if (res.ok) {
+                    cemIdInput.value = '';
+                    await loadCemeteries();
+                } else {
+                    const data = await res.json();
+                    alert("Error: " + data.error);
+                }
+            } catch(err) {
+                alert("Failed to add cemetery: " + err.message);
+            } finally {
+                addCemBtn.disabled = false;
+                addCemBtn.textContent = "➕ Add Cemetery";
+            }
+        });
+
+        // Sync Cemetery Metadata
+        syncCemBtn.addEventListener('click', async () => {
+            if(!confirm("Loop through and fetch missing location & GPS details for all cemeteries in the background? This will run Chrome and print real-time progress below.")) return;
+            
+            syncCemBtn.disabled = true;
+            syncCemBtn.textContent = "Requesting Sync...";
+            
+            try {
+                const res = await fetch('/api/cemeteries/populate-metadata', { method: 'POST' });
+                if(res.ok) {
+                    alert("Cemetery metadata sync started in background! Check the console logs on the right.");
+                } else {
+                    const err = await res.json();
+                    alert("Error: " + err.error);
+                }
+            } catch(e) {
+                alert("Error starting sync: " + e.message);
+            } finally {
+                syncCemBtn.disabled = false;
+                syncCemBtn.textContent = "🔄 Fetch GPS";
+            }
+        });
+
+        // Download Pictures on demand
+        downloadPhotosBtn.addEventListener('click', async () => {
+            if (!activeMemorialId) return;
+            
+            downloadPhotosBtn.disabled = true;
+            downloadPhotosBtn.textContent = "📥 Downloading...";
+            
+            try {
+                const res = await fetch(`/api/memorials/${activeMemorialId}/download-photos`, { method: 'POST' });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    // Update gallery strip immediately
+                    const photoContainer = document.getElementById('modalPhotoContainer');
+                    const photoGallery = document.getElementById('modalPhotoGallery');
+                    photoGallery.innerHTML = '';
+                    
+                    if (data.photos && data.photos.length > 0) {
+                        data.photos.forEach(pUrl => {
+                            const img = document.createElement('img');
+                            img.src = pUrl;
+                            img.className = 'gallery-img';
+                            img.alt = 'Memorial Photo';
+                            img.onclick = () => window.open(pUrl, '_blank');
+                            photoGallery.appendChild(img);
+                        });
+                        photoContainer.style.display = 'block';
+                    } else {
+                        photoContainer.style.display = 'none';
+                        alert("No photos found on Find a Grave for this memorial.");
+                    }
+                } else {
+                    alert("Download failed: " + data.error);
+                }
+            } catch (err) {
+                alert("Failed to download photos: " + err.message);
+            } finally {
+                downloadPhotosBtn.disabled = false;
+                downloadPhotosBtn.textContent = "📥 Download Pictures from Find A Grave";
+            }
+        });
+
+        // Generation Depth Handlers
+        document.getElementById('decAncestorsBtn').addEventListener('click', () => {
+            if (ancestorDepth > 0) {
+                ancestorDepth--;
+                document.getElementById('ancestorsCountVal').textContent = ancestorDepth;
+                if (activeMemorialId) drawFamilyGraph(activeMemorialId);
+            }
+        });
+        document.getElementById('incAncestorsBtn').addEventListener('click', () => {
+            if (ancestorDepth < 10) {
+                ancestorDepth++;
+                document.getElementById('ancestorsCountVal').textContent = ancestorDepth;
+                if (activeMemorialId) drawFamilyGraph(activeMemorialId);
+            }
+        });
+        document.getElementById('decDescendantsBtn').addEventListener('click', () => {
+            if (descendantDepth > 0) {
+                descendantDepth--;
+                document.getElementById('descendantsCountVal').textContent = descendantDepth;
+                if (activeMemorialId) drawFamilyGraph(activeMemorialId);
+            }
+        });
+        document.getElementById('incDescendantsBtn').addEventListener('click', () => {
+            if (descendantDepth < 10) {
+                descendantDepth++;
+                document.getElementById('descendantsCountVal').textContent = descendantDepth;
+                if (activeMemorialId) drawFamilyGraph(activeMemorialId);
+            }
+        });
+
+        // Delete Cemetery
+        async function deleteCemetery(id) {
+            if(!confirm(`Are you sure you want to delete cemetery ${id} and all stashed memorials?`)) return;
+            try {
+                const res = await fetch(`/api/cemeteries/${id}`, { method: 'DELETE' });
+                if(res.ok) {
+                    await loadCemeteries();
+                    await loadMemorials();
+                }
+            } catch(err) {
+                alert("Failed to delete: " + err.message);
+            }
+        }
+
+        // Trigger Scrape Job
+        async function triggerScrape(cemId) {
+            const groups = ['burial'];
+            if(document.getElementById('groupParent').checked) groups.push('parent');
+            if(document.getElementById('groupSpouse').checked) groups.push('spouse');
+            if(document.getElementById('groupChild').checked) groups.push('child');
+            if(document.getElementById('groupSibling').checked) groups.push('sibling');
+            if(document.getElementById('groupHalfSibling').checked) groups.push('half-sibling');
+            
+            try {
+                const res = await fetch('/api/scrape/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cemetery_id: cemId, groups })
+                });
+                if(res.ok) {
+                    logConsole.innerHTML = '<div>[Scraper] Initializing...</div>';
+                    startPollingScraper();
+                } else {
+                    const err = await res.json();
+                    alert("Error starting scrape: " + err.error);
+                }
+            } catch(err) {
+                alert("Request failed: " + err.message);
+            }
+        }
+
+        // Start scrape on button click
+        startScrapeBtn.addEventListener('click', () => {
+            const cemId = targetCemSelect.value;
+            if(!cemId) {
+                alert("Please select a target cemetery first.");
+                return;
+            }
+            triggerScrape(cemId);
+        });
+
+        // Scraper Job Controls
+        pauseBtn.addEventListener('click', async () => {
+            const active = pauseBtn.textContent.includes("Pause");
+            const route = active ? '/api/scrape/pause' : '/api/scrape/resume';
+            const res = await fetch(route, { method: 'POST' });
+            if(res.ok) {
+                pauseBtn.textContent = active ? "▶️ Resume" : "⏸️ Pause";
+            }
+        });
+
+        cancelBtn.addEventListener('click', async () => {
+            if(!confirm("Cancel active scraping job?")) return;
+            const res = await fetch('/api/scrape/cancel', { method: 'POST' });
+            if(res.ok) {
+                scraperJobControls.style.display = 'none';
+            }
+        });
+
+        // Poll Scraper Progress
+        let pollInterval = null;
+        function startPollingScraper() {
+            if(pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(pollScraper, 1000);
+        }
+
+        async function pollScraper() {
+            try {
+                const res = await fetch('/api/scrape/status');
+                const status = await res.json();
+                
+                if(status.active) {
+                    statStatus.textContent = status.paused ? "Paused" : "Scraping...";
+                    statStatus.style.color = status.paused ? "var(--accent-purple)" : "var(--accent-green)";
+                    scraperJobControls.style.display = 'flex';
+                    pauseBtn.textContent = status.paused ? "▶️ Resume" : "⏸️ Pause";
+                    
+                    const q = status.queue_stats;
+                    const pending = q.pending || 0;
+                    const downloading = q.downloading || 0;
+                    const failed = q.failed || 0;
+                    
+                    statQueue.textContent = `${pending} pending`;
+                    
+                    // Render logs
+                    logConsole.innerHTML = status.logs.map(l => `<div>${l}</div>`).join('');
+                    logConsole.scrollTop = logConsole.scrollHeight;
+                    
+                    // Calc progress
+                    const total = pending + downloading + failed;
+                    if(total > 0) {
+                        const progress = ((total - pending) / total) * 100;
+                        progressBar.style.width = `${progress}%`;
+                        jobDetails.textContent = `Scraping ID ${status.current_cemetery_id}: ${total - pending}/${total} completed (${failed} failed)`;
+                    } else {
+                        progressBar.style.width = '0%';
+                        jobDetails.textContent = `Processing index...`;
+                    }
+                    
+                    activeScrapeCemId = status.current_cemetery_id;
+                } else {
+                    statStatus.textContent = "Idle";
+                    statStatus.style.color = "var(--text-secondary)";
+                    scraperJobControls.style.display = 'none';
+                    progressBar.style.width = '0%';
+                    jobDetails.textContent = "No active scraping run.";
+                    statQueue.textContent = "0 pending";
+                    
+                    if(activeScrapeCemId) {
+                        activeScrapeCemId = null;
+                        await loadCemeteries();
+                        await loadMemorials();
+                    }
+                }
+            } catch(err) {
+                console.error("Error polling scraper", err);
+            }
+        }
+
+        // Load Memorials
+        async function loadMemorials() {
+            const query = searchInput.value.trim();
+            const cemId = filterCemSelect.value;
+            const offset = (curPage - 1) * limit;
+            
+            try {
+                const res = await fetch(`/api/memorials?cemetery_id=${cemId}&query=${query}&limit=${limit}&offset=${offset}`);
+                const data = await res.json();
+                
+                // Update stat totals
+                statMemorials.textContent = data.total;
+                
+                // Table Rows
+                memorialTableBody.innerHTML = '';
+                if(data.memorials.length === 0) {
+                    memorialTableBody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: var(--text-secondary);">No stashed memorials match query.</td></tr>`;
+                    prevPageBtn.disabled = true;
+                    nextPageBtn.disabled = true;
+                    return;
+                }
+                
+                data.memorials.forEach(mem => {
+                    const row = document.createElement('tr');
+                    row.onclick = () => showMemorialDetails(mem.id);
+                    
+                    const gps = (mem.gps_lat && mem.gps_lng) ? `${mem.gps_lat.toFixed(5)}, ${mem.gps_lng.toFixed(5)}` : '-';
+                    
+                    row.innerHTML = `
+                        <td style="font-weight: 600;">${mem.name}</td>
+                        <td>${mem.first_name || '-'}</td>
+                        <td>${mem.middle_name || '-'}</td>
+                        <td style="font-style: italic; color: var(--accent-purple);">${mem.maiden_name || '-'}</td>
+                        <td style="font-weight: 500;">${mem.last_name || '-'}</td>
+                        <td>${mem.nickname ? `"${mem.nickname}"` : '-'}</td>
+                        <td style="color: var(--accent-blue); font-family: monospace;">${mem.id}</td>
+                        <td><span class="cemetery-badge">${mem.cemetery_nickname}</span></td>
+                        <td>${mem.birth_date || '-'}</td>
+                        <td>${mem.death_date || '-'}</td>
+                        <td>${mem.plot || '-'}</td>
+                        <td style="font-family: monospace; font-size: 0.85rem;">${gps}</td>
+                    `;
+                    memorialTableBody.appendChild(row);
+                });
+                
+                // Pagination
+                pageIndicator.textContent = `Page ${curPage} of ${Math.ceil(data.total / limit) || 1}`;
+                prevPageBtn.disabled = curPage === 1;
+                nextPageBtn.disabled = offset + data.memorials.length >= data.total;
+                
+            } catch(err) {
+                console.error("Error loading memorials", err);
+            }
+        }
+
+        // Search Handlers
+        searchBtn.addEventListener('click', () => { curPage = 1; loadMemorials(); });
+        searchInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') { curPage = 1; loadMemorials(); } });
+        filterCemSelect.addEventListener('change', () => { curPage = 1; loadMemorials(); });
+        
+        prevPageBtn.addEventListener('click', () => { if(curPage > 1) { curPage--; loadMemorials(); } });
+        nextPageBtn.addEventListener('click', () => { curPage++; loadMemorials(); });
+
+        // Tab click listeners
+        tabDetailsBtn.addEventListener('click', () => {
+            tabDetailsBtn.classList.add('active');
+            tabDetailsBtn.style.borderBottomColor = 'var(--accent-blue)';
+            tabDetailsBtn.style.color = 'var(--text-primary)';
+            
+            tabGraphBtn.classList.remove('active');
+            tabGraphBtn.style.borderBottomColor = 'transparent';
+            tabGraphBtn.style.color = 'var(--text-secondary)';
+            
+            tabDetailsContent.style.display = 'block';
+            tabGraphContent.style.display = 'none';
+        });
+        
+        tabGraphBtn.addEventListener('click', () => {
+            tabGraphBtn.classList.add('active');
+            tabGraphBtn.style.borderBottomColor = 'var(--accent-blue)';
+            tabGraphBtn.style.color = 'var(--text-primary)';
+            
+            tabDetailsBtn.classList.remove('active');
+            tabDetailsBtn.style.borderBottomColor = 'transparent';
+            tabDetailsBtn.style.color = 'var(--text-secondary)';
+            
+            tabDetailsContent.style.display = 'none';
+            tabGraphContent.style.display = 'block';
+            
+            if (activeMemorialId) {
+                drawFamilyGraph(activeMemorialId);
+            }
+        });
+
+        // Memorial Modal Details
+        async function showMemorialDetails(memId) {
+            try {
+                // Set active memorial ID
+                activeMemorialId = memId;
+                
+                // Reset generation depth settings to defaults
+                ancestorDepth = 2;
+                descendantDepth = 2;
+                document.getElementById('ancestorsCountVal').textContent = ancestorDepth;
+                document.getElementById('descendantsCountVal').textContent = descendantDepth;
+                
+                // Reset active tab to Biography & Details
+                tabDetailsBtn.click();
+                
+                const res = await fetch(`/api/memorials/${memId}`);
+                const data = await res.json();
+                
+                document.getElementById('modalName').textContent = data.name;
+                document.getElementById('modalId').textContent = data.id;
+                document.getElementById('modalCemetery').textContent = `${data.cemetery_name} (ID: ${data.cemetery_id})`;
+                document.getElementById('modalBirth').innerHTML = `${data.birth_date || 'Unknown'}<br><span style="color: var(--text-secondary); font-size: 0.85rem;">${data.birth_location || ''}</span>`;
+                document.getElementById('modalDeath').innerHTML = `${data.death_date || 'Unknown'}<br><span style="color: var(--text-secondary); font-size: 0.85rem;">${data.death_location || ''}</span>`;
+                
+                // Populate name details
+                const prefixSuffix = [data.prefix, data.suffix].filter(Boolean).join(' / ');
+                document.getElementById('modalPrefixSuffix').textContent = prefixSuffix || '-';
+                
+                const firstMiddle = [data.first_name, data.middle_name].filter(Boolean).join(' ');
+                document.getElementById('modalFirstMiddle').textContent = firstMiddle || '-';
+                
+                document.getElementById('modalMaidenName').textContent = data.maiden_name || '-';
+                document.getElementById('modalLastName').textContent = data.last_name || '-';
+                document.getElementById('modalNickname').textContent = data.nickname ? `"${data.nickname}"` : '-';
+                document.getElementById('modalPlot').textContent = data.plot || 'Not specified';
+                
+                const gps = (data.gps_lat && data.gps_lng) ? `<a href="https://maps.google.com/?q=${data.gps_lat},${data.gps_lng}" target="_blank" style="color: var(--accent-blue);">${data.gps_lat.toFixed(6)}, ${data.gps_lng.toFixed(6)} (Open Map)</a>` : 'No GPS coordinates';
+                document.getElementById('modalGps').innerHTML = gps;
+                
+                document.getElementById('modalInscription').textContent = data.inscription || 'No stone inscription text stashed.';
+                document.getElementById('modalBio').textContent = data.bio || 'No stashed biography.';
+                
+                // Populate photos
+                const photoContainer = document.getElementById('modalPhotoContainer');
+                const photoGallery = document.getElementById('modalPhotoGallery');
+                photoGallery.innerHTML = '';
+                
+                if (data.photos && data.photos.length > 0) {
+                    data.photos.forEach(pUrl => {
+                        const img = document.createElement('img');
+                        img.src = pUrl;
+                        img.className = 'gallery-img';
+                        img.alt = 'Memorial Photo';
+                        img.onclick = () => window.open(pUrl, '_blank');
+                        photoGallery.appendChild(img);
+                    });
+                    photoContainer.style.display = 'block';
+                } else {
+                    photoContainer.style.display = 'none';
+                }
+                
+                // Render Relations
+                const relContainer = document.getElementById('modalRelations');
+                relContainer.innerHTML = '';
+                
+                const types = {
+                    'parent': 'Parents',
+                    'spouse': 'Spouses',
+                    'child': 'Children',
+                    'sibling': 'Siblings',
+                    'half-sibling': 'Half-Siblings'
+                };
+                
+                let relCount = 0;
+                for (const [type, label] of Object.entries(types)) {
+                    if (data.relationships[type] && data.relationships[type].length > 0) {
+                        relCount++;
+                        const block = document.createElement('div');
+                        block.style.marginBottom = '1rem';
+                        block.innerHTML = `<h6 style="color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; margin-bottom: 0.25rem;">${label}</h6>`;
+                        
+                        data.relationships[type].forEach(rel => {
+                            const relRow = document.createElement('div');
+                            relRow.className = 'rel-card';
+                            relRow.innerHTML = `
+                                <span>
+                                    <a href="#" onclick="showMemorialDetails('${rel.id}'); return false;">${rel.name}</a>
+                                    <span style="color: var(--text-secondary); font-size: 0.8rem;">(${rel.birth} - ${rel.death})</span>
+                                </span>
+                                <span class="cemetery-badge">${rel.cemetery}</span>
+                            `;
+                            block.appendChild(relRow);
+                        });
+                        relContainer.appendChild(block);
+                    }
+                }
+                
+                if(relCount === 0) {
+                    relContainer.innerHTML = `<p style="font-size: 0.9rem; color: var(--text-secondary);">No relationships stashed for this profile.</p>`;
+                }
+                
+                detailsModal.classList.add('active');
+            } catch(err) {
+                alert("Failed to load details: " + err.message);
+            }
+        }
+
+        function closeModal() {
+            detailsModal.classList.remove('active');
+            if (familyNetworkInstance) {
+                familyNetworkInstance.destroy();
+                familyNetworkInstance = null;
+            }
+        }
+
+        closeModalBtn.addEventListener('click', closeModal);
+        closeModalFooterBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => { if(e.target === detailsModal) closeModal(); });
+
+        // Vis.js Family Graph Drawer
+        async function drawFamilyGraph(memId) {
+            const container = document.getElementById('familyGraph');
+            container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 0.9rem;">Loading family network graph...</div>';
+            
+            try {
+                const res = await fetch(`/api/memorials/${memId}/graph?ancestors=${ancestorDepth}&descendants=${descendantDepth}`);
+                if (!res.ok) throw new Error("Failed to load graph data");
+                const data = await res.json();
+                
+                const colors = {
+                    'focus': { background: '#007bff', border: '#0056b3', highlight: { background: '#3395ff', border: '#0056b3' } },
+                    'ancestor': { background: '#28a745', border: '#1e7e34', highlight: { background: '#4cd166', border: '#1e7e34' } },
+                    'spouse': { background: '#6f42c1', border: '#5a32a3', highlight: { background: '#9466df', border: '#5a32a3' } },
+                    'descendant': { background: '#fd7e14', border: '#d3660c', highlight: { background: '#ff9947', border: '#d3660c' } },
+                    'sibling': { background: '#17a2b8', border: '#117a8b', highlight: { background: '#35cce6', border: '#117a8b' } }
+                };
+                
+                const visNodes = data.nodes.map(node => {
+                    const groupColor = colors[node.group] || colors['focus'];
+                    return {
+                        id: node.id,
+                        label: node.label,
+                        level: node.level,
+                        title: `ID: ${node.id}`,
+                        color: {
+                            background: groupColor.background,
+                            border: groupColor.border,
+                            highlight: groupColor.highlight
+                        },
+                        font: { color: '#ffffff', face: 'system-ui, -apple-system, sans-serif', size: 13, bold: node.group === 'focus' },
+                        shape: 'box',
+                        borderWidth: node.group === 'focus' ? 3 : 1.5,
+                        margin: 10,
+                        shadow: {
+                            enabled: true,
+                            color: 'rgba(0,0,0,0.5)',
+                            size: 4,
+                            x: 2,
+                            y: 2
+                        }
+                    };
+                });
+                
+                const visEdges = data.edges.map(edge => {
+                    return {
+                        from: edge.from,
+                        to: edge.to,
+                        label: edge.label,
+                        color: { color: '#555555', highlight: '#888888' },
+                        font: { color: '#aaaaaa', strokeWidth: 0, size: 10, align: 'top' },
+                        arrows: {
+                            to: { enabled: true, scaleFactor: 0.6 }
+                        },
+                        smooth: {
+                            type: 'cubicBezier',
+                            forceDirection: 'vertical',
+                            roundness: 0.5
+                        }
+                    };
+                });
+                
+                const visData = {
+                    nodes: new vis.DataSet(visNodes),
+                    edges: new vis.DataSet(visEdges)
+                };
+                
+                const options = {
+                    layout: {
+                        hierarchical: {
+                            enabled: true,
+                            direction: 'UD',
+                            sortMethod: 'directed',
+                            nodeSpacing: 180,
+                            levelSeparation: 120,
+                            treeSpacing: 220,
+                            blockShifting: true,
+                            edgeMinimization: true,
+                            parentCentralization: true
+                        }
+                    },
+                    physics: {
+                        enabled: false
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 100,
+                        navigationButtons: true,
+                        keyboard: true
+                    }
+                };
+                
+                if (familyNetworkInstance) {
+                    familyNetworkInstance.destroy();
+                }
+                
+                familyNetworkInstance = new vis.Network(container, visData, options);
+                
+                // Click-to-refocus event handler
+                familyNetworkInstance.on("click", function(params) {
+                    if (params.nodes.length > 0) {
+                        const clickedNodeId = params.nodes[0];
+                        if (clickedNodeId !== activeMemorialId) {
+                            showMemorialDetails(clickedNodeId);
+                            // Give modal details a split second to start fetching, then open the graph tab
+                            setTimeout(() => {
+                                tabGraphBtn.click();
+                            }, 150);
+                        }
+                    }
+                });
+                
+            } catch(e) {
+                container.innerHTML = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ef4444; font-size: 0.9rem;">Error drawing graph: ${e.message}</div>`;
+            }
+        }
+
+        closeModalBtn.addEventListener('click', closeModal);
+        closeModalFooterBtn.addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => { if(e.target === detailsModal) closeModal(); });
+
+        // Export Report
+        exportBtn.addEventListener('click', async () => {
+            exportBtn.disabled = true;
+            exportBtn.textContent = "⚙️ Exporting Spreadsheet...";
+            
+            try {
+                const res = await fetch('/api/export', { method: 'POST' });
+                const data = await res.json();
+                
+                if(res.ok) {
+                    alert(`Excel spreadsheet generated at: ${data.file}\nStarting download now...`);
+                    // Trigger download
+                    window.location.href = '/api/download-excel';
+                } else {
+                    alert("Export failed: " + data.error);
+                }
+            } catch(err) {
+                alert("Failed to export: " + err.message);
+            } finally {
+                exportBtn.disabled = false;
+                exportBtn.textContent = "📊 Generate Excel Report";
+            }
+        });
+    </script>
+</body>
+</html>
