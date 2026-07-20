@@ -5,7 +5,7 @@ Create a local, offline media-rich archive of Find a Grave (https://www.findagra
 ## Last Updated
 2026-07-19 (Updated with Local Web GUI, SQLite Caching, GPS Scraping, Detailed Name Parsing, Vis.js Pedigree Trees, & On-Demand Media Vault)
 
-This project builds upon the original command-line scraping scripts developed by **Doug Foster** (https://dougfoster.me). It has been upgraded into a premium genealogy research workstation featuring a local Flask Web GUI dashboard, SQLite caching, background browser recycling, automated Cloudflare challenge bypass, and deep extraction capabilities.
+This project builds upon the original command-line scraping scripts developed by **Doug Foster** (https://dougfoster.me). It has been upgraded into a local workstation featuring a Flask Web GUI dashboard, SQLite database, background browser recycling, automated Cloudflare challenge bypass, and deep extraction capabilities.
 
 ---
 
@@ -32,7 +32,7 @@ Instead of saving raw full names, the workstation parses every memorial's name i
 
 ### 3. Geographic Mapping & GPS
 * Extracts the cemetery's official address/location (e.g., `Cabell County, West Virginia, USA`).
-* Scrapes the exact latitude and longitude coordinates from the cemetery directions link.
+* Scrapes the latitude and longitude coordinates from the cemetery directions link.
 * Embeds clickable Google Maps link in the GUI dashboard cemetery list cards.
 
 ### 4. Incremental Scrapes & Multi-Phase Tree Building
