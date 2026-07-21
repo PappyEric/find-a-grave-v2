@@ -267,10 +267,10 @@ def get_memorial_details(memorial_id):
     
     # Get relationships
     cursor.execute("""
-        SELECT r.relationship_type, m.id, m.name, m.birth_date, m.death_date, c.nickname as cemetery_nickname
+        SELECT r.relationship_type, m.id, m.name, m.birth_date, m.death_date, m.cemetery_id, c.name as cemetery_name, c.nickname as cemetery_nickname
         FROM relationships r
         JOIN memorials m ON r.to_memorial_id = m.id
-        JOIN cemeteries c ON m.cemetery_id = c.id
+        LEFT JOIN cemeteries c ON m.cemetery_id = c.id
         WHERE r.from_memorial_id = ?;
     """, (memorial_id,))
     rel_rows = cursor.fetchall()
@@ -287,7 +287,8 @@ def get_memorial_details(memorial_id):
             'name': r['name'],
             'birth': r['birth_date'] or 'unknown',
             'death': r['death_date'] or 'unknown',
-            'cemetery': r['cemetery_nickname']
+            'cemetery_id': r['cemetery_id'],
+            'cemetery': r['cemetery_name'] or r['cemetery_nickname'] or 'Unknown Cemetery'
         })
         
     memorial['relationships'] = relationships
@@ -511,10 +512,10 @@ def db_to_excel(output_path='output/burials.xlsx'):
             # Output list format for rich string: [Name, format_bold, Lastname, details]
             def get_rich_relation_list(rtype):
                 cursor.execute("""
-                    SELECT m.name, m.birth_date, m.death_date, c.id, c.nickname
+                    SELECT m.name, m.birth_date, m.death_date, c.id, c.name as cemetery_name, c.nickname
                     FROM relationships r
                     JOIN memorials m ON r.to_memorial_id = m.id
-                    JOIN cemeteries c ON m.cemetery_id = c.id
+                    LEFT JOIN cemeteries c ON m.cemetery_id = c.id
                     WHERE r.from_memorial_id = ? AND r.relationship_type = ?;
                 """, (mem_id, rtype))
                 relatives = cursor.fetchall()
@@ -526,12 +527,12 @@ def db_to_excel(output_path='output/burials.xlsx'):
                     rel_name = rel['name']
                     birth = rel['birth_date'] or 'unknown'
                     death = rel['death_date'] or 'unknown'
-                    c_nick = rel['nickname'] or f"#{rel['id']}"
+                    c_name = rel['cemetery_name'] or rel['nickname'] or f"#{rel['id']}"
                     
                     name_parts = bold_last_name(rel_name)
                     segments.extend(name_parts)
                     
-                    etc = f", {birth} - {death}, #{c_nick}"
+                    etc = f", {birth} - {death}, #{c_name}"
                     if i < len(relatives) - 1:
                         etc += "\n"
                     segments.append(etc)

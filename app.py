@@ -10,6 +10,9 @@ from flask import Flask, request, jsonify, render_template, send_file, send_from
 import database
 import grave_digger
 import toolbox
+import gedcom_exporter
+import geo_utils
+import io
 import glob
 import shutil
 
@@ -375,6 +378,20 @@ def api_get_cemeteries():
         cem['queue_stats'] = stats
     return jsonify(cemeteries)
 
+@app.route('/api/cemeteries/<cemetery_id>', methods=['GET'])
+def api_get_cemetery_details(cemetery_id):
+    cem = database.get_cemetery(cemetery_id)
+    if not cem:
+        return jsonify({'error': 'Cemetery not found'}), 404
+        
+    stats = database.get_queue_stats(cemetery_id)
+    cem['queue_stats'] = stats
+    
+    memorials, total_count = database.get_memorials(cemetery_id=cemetery_id, limit=5000, offset=0)
+    cem['memorials'] = memorials
+    cem['burial_count'] = total_count
+    return jsonify(cem)
+
 @app.route('/api/cemeteries', methods=['POST'])
 def api_add_cemetery():
     data = request.json
@@ -603,11 +620,11 @@ def api_get_memorial_graph(memorial_id):
             }
             
         # Generation boundary checks
-        if rel_group == 'ancestor' and abs(level) >= ancestor_depth:
+        if rel_group in ['ancestor', 'spouse_ancestor'] and abs(level) >= ancestor_depth:
             continue
         if rel_group == 'descendant' and abs(level) >= descendant_depth:
             continue
-        if rel_group in ['sibling', 'spouse']:
+        if rel_group in ['focus_sibling', 'spouse_sibling', 'sibling']:
             continue
             
         cursor.execute("""
@@ -657,12 +674,28 @@ def api_get_memorial_graph(memorial_id):
                 elif logical_rel == 'spouse':
                     next_group = 'spouse'
                     next_level = level
-                elif logical_rel == 'sibling' or logical_rel == 'half-sibling':
-                    next_group = 'sibling'
+                elif logical_rel in ['sibling', 'half-sibling']:
+                    next_group = 'focus_sibling'
                     next_level = level
-            elif rel_group == 'ancestor':
+            elif rel_group == 'spouse':
+                if logical_rel in ['sibling', 'half-sibling']:
+                    next_group = 'spouse_sibling'
+                    next_level = level
+                elif logical_rel == 'parent':
+                    if ancestor_depth > 0:
+                        next_group = 'spouse_ancestor'
+                        next_level = level - 1
+                    else:
+                        continue
+                elif logical_rel == 'child':
+                    if descendant_depth > 0:
+                        next_group = 'descendant'
+                        next_level = level + 1
+                    else:
+                        continue
+            elif rel_group in ['ancestor', 'spouse_ancestor']:
                 if logical_rel == 'parent':
-                    next_group = 'ancestor'
+                    next_group = rel_group
                     next_level = level - 1
                 else:
                     continue
@@ -705,6 +738,79 @@ def download_excel():
     if os.path.exists(output_file):
         return send_file(output_file, as_attachment=True)
     return "File not found", 404
+
+@app.route('/api/memorials/<memorial_id>/export-gedcom', methods=['GET', 'POST'])
+def export_memorial_gedcom(memorial_id):
+    try:
+        gedcom_content = gedcom_exporter.export_focus_person_gedcom(memorial_id)
+        if not gedcom_content:
+            return jsonify({'error': 'Memorial not found or no data available'}), 404
+        
+        mem_details = database.get_memorial_details(memorial_id)
+        mem_name = mem_details.get('name', f'memorial_{memorial_id}') if mem_details else f'memorial_{memorial_id}'
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', mem_name).strip('_')
+        filename = f"{safe_name}_family.ged"
+        
+        buffer = io.BytesIO(gedcom_content.encode('utf-8'))
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='text/plain'
+        )
+    except Exception as e:
+        return jsonify({'error': f"GEDCOM export failed: {str(e)}"}), 500
+
+@app.route('/api/cemeteries/<cemetery_id>/export-gedcom', methods=['GET', 'POST'])
+def export_cemetery_gedcom(cemetery_id):
+    try:
+        gedcom_content = gedcom_exporter.export_cemetery_gedcom(cemetery_id)
+        if not gedcom_content:
+            return jsonify({'error': 'Cemetery not found or no stashed memorials available'}), 404
+        
+        filename = f"cemetery_{cemetery_id}_registry.ged"
+        if str(cemetery_id).lower() == 'all':
+            filename = "all_cemeteries_registry.ged"
+            
+        buffer = io.BytesIO(gedcom_content.encode('utf-8'))
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='text/plain'
+        )
+    except Exception as e:
+        return jsonify({'error': f"GEDCOM export failed: {str(e)}"}), 500
+
+@app.route('/api/map/cemeteries', methods=['GET'])
+def api_get_map_cemeteries():
+    try:
+        cemeteries = geo_utils.get_cemeteries_with_gps()
+        return jsonify({'cemeteries': cemeteries, 'count': len(cemeteries)})
+    except Exception as e:
+        return jsonify({'error': f"Failed to fetch map cemeteries: {str(e)}"}), 500
+
+@app.route('/api/map/burials', methods=['GET'])
+def api_get_map_burials():
+    try:
+        cemetery_id = request.args.get('cemetery_id')
+        surname = request.args.get('surname')
+        burials = geo_utils.get_burials_with_gps(cemetery_id=cemetery_id, surname=surname)
+        return jsonify({'burials': burials, 'count': len(burials)})
+    except Exception as e:
+        return jsonify({'error': f"Failed to fetch map burials: {str(e)}"}), 500
+
+@app.route('/api/memorials/<memorial_id>/proximity', methods=['GET'])
+def api_get_memorial_proximity(memorial_id):
+    try:
+        radius_feet = float(request.args.get('radius_feet', 100))
+        cemetery_id = request.args.get('cemetery_id')
+        result = geo_utils.find_nearby_burials(memorial_id, radius_feet=radius_feet, cemetery_id=cemetery_id)
+        if 'error' in result and 'focus_memorial' not in result:
+            return jsonify(result), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': f"Failed to compute proximity: {str(e)}"}), 500
 
 def import_existing_stash():
     print("Scanning stash/ folder for existing stashed memorials...")
