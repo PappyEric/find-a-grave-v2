@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demographics & Analytics Insights - Find a Grave Tools</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+            --accent-amber: #f59e0b;
+            --accent-pink: #ec4899;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-primary); padding: 1.5rem; min-height: 100vh; }
+        .container { max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+
+        .btn {
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .stat-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-icon {
+            width: 46px; height: 46px;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.15);
+            color: var(--accent-blue);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem;
+        }
+
+        .stat-details h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.2rem; }
+        .stat-details p { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        .chart-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-header h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); }
+        .chart-container { position: relative; width: 100%; height: 320px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Navigation Bar -->
+        <nav class="main-navbar" style="display: flex; align-items: center; justify-content: space-between; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem 1.5rem; box-shadow: var(--shadow);">
+            <div class="nav-brand">
+                <a href="/" style="text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🪦 Find a Grave Tools</span>
+                    <span style="font-size: 0.7rem; background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.3);">v2.5</span>
+                </a>
+            </div>
+            <div class="nav-links" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(15, 23, 42, 0.5); padding: 0.35rem; border-radius: 10px; border: 1px solid var(--border-color);">
+                <a href="/" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📊 Dashboard</a>
+                <a href="/tree" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🌳 Family Tree</a>
+                <a href="/map" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🗺️ GIS Cemetery Map</a>
+                <a href="/analytics" style="text-decoration: none; color: #fff; background: var(--accent-blue); font-weight: 600; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📈 Analytics</a>
+                <a href="/quality" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🔍 Data Quality</a>
+            </div>
+            <div>
+                <button class="btn" onclick="fetchAnalyticsData()">🔄 Refresh Data</button>
+            </div>
+        </nav>
+
+        <!-- Toolbar with Cemetery Filter -->
+        <div class="toolbar-card" style="background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; box-shadow: var(--shadow);">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <label for="analyticsCemSelect" style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">📍 Filter Cemetery:</label>
+                <select id="analyticsCemSelect" style="background-color: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.45rem 0.8rem; border-radius: 8px; font-size: 0.9rem; min-width: 280px;">
+                    <option value="all">📍 All Cemeteries (Combined Demographics)</option>
+                </select>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary);" id="analyticsScopeText">
+                Showing all stashed records
+            </div>
+        </div>
+
+        <!-- Stats Overview Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green);">🪦</div>
+                <div class="stat-details">
+                    <h3>Stashed Memorials</h3>
+                    <p id="statTotalMemorials">-</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(139, 92, 246, 0.15); color: var(--accent-purple);">🏛️</div>
+                <div class="stat-details">
+                    <h3>Cemeteries</h3>
+                    <p id="statTotalCemeteries">-</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: var(--accent-amber);">⏳</div>
+                <div class="stat-details">
+                    <h3>Avg. Lifespan</h3>
+                    <p id="statAvgLifespan">-</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(236, 72, 153, 0.15); color: var(--accent-pink);">🎖️</div>
+                <div class="stat-details">
+                    <h3>Veterans</h3>
+                    <p id="statVeterans">-</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.15); color: var(--accent-blue);">🕸️</div>
+                <div class="stat-details">
+                    <h3>Family Connections</h3>
+                    <p id="statRelationships">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <!-- Chart 1: Lifespan Distribution -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>⏳ Lifespan Age Distribution</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Age at Death</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="ageChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 2: Decades Timeline -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>📅 Births & Deaths Timeline by Decade</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">1800s — Present</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="decadesChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 3: Top Surnames -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>👥 Top Family Surnames</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Most Common Surnames</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="surnamesChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Chart 4: Seasonality of Deaths -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>🍂 Mortality Seasonality</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Deaths by Month</span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="monthChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ageChartInst = null;
+        let decadesChartInst = null;
+        let surnamesChartInst = null;
+        let monthChartInst = null;
+
+        // Global Chart Defaults for Dark Mode
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = 'Inter';
+
+        async function loadAnalyticsCemeteriesDropdown() {
+            try {
+                const res = await fetch('/api/cemeteries');
+                const rawData = await res.json();
+                const list = Array.isArray(rawData) ? rawData : (rawData.cemeteries || []);
+                const sel = document.getElementById('analyticsCemSelect');
+
+                list.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `🏛️ ${c.name || c.id} (${c.burial_count || 0} burials)`;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+
+        async function fetchAnalyticsData(cemeteryId = 'all') {
+            try {
+                let url = '/api/analytics';
+                if (cemeteryId && cemeteryId !== 'all') {
+                    url += `?cemetery_id=${encodeURIComponent(cemeteryId)}`;
+                }
+
+                const res = await fetch(url);
+                const data = await res.json();
+
+                // Update summary stats
+                document.getElementById('statTotalMemorials').textContent = data.total_memorials.toLocaleString();
+                document.getElementById('statTotalCemeteries').textContent = data.total_cemeteries.toLocaleString();
+                document.getElementById('statAvgLifespan').textContent = `${data.average_lifespan} yrs`;
+                document.getElementById('statVeterans').textContent = `${data.total_veterans} (${data.veteran_percentage}%)`;
+                document.getElementById('statRelationships').textContent = data.total_relationships.toLocaleString();
+
+                const scopeText = document.getElementById('analyticsScopeText');
+                if (scopeText) {
+                    scopeText.textContent = (cemeteryId === 'all') ? 'Showing all stashed records' : `Scoped to Cemetery #${cemeteryId}`;
+                }
+
+                renderAgeChart(data.age_distribution);
+                renderDecadesChart(data.decades_timeline);
+                renderSurnamesChart(data.top_surnames);
+                renderMonthChart(data.month_deaths);
+            } catch(e) {
+                alert("Failed to load analytics: " + e.message);
+            }
+        }
+
+        function renderAgeChart(ageData) {
+            const ctx = document.getElementById('ageChart').getContext('2d');
+            if (ageChartInst) ageChartInst.destroy();
+
+            ageChartInst = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(ageData),
+                    datasets: [{
+                        label: 'Individuals',
+                        data: Object.values(ageData),
+                        backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                        borderColor: '#3b82f6',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.5)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderDecadesChart(timelineData) {
+            const ctx = document.getElementById('decadesChart').getContext('2d');
+            if (decadesChartInst) decadesChartInst.destroy();
+
+            const labels = timelineData.map(d => d.decade);
+            const births = timelineData.map(d => d.births);
+            const deaths = timelineData.map(d => d.deaths);
+
+            decadesChartInst = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Births',
+                            data: births,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Deaths',
+                            data: deaths,
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top' } },
+                    scales: {
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.5)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderSurnamesChart(surnamesData) {
+            const ctx = document.getElementById('surnamesChart').getContext('2d');
+            if (surnamesChartInst) surnamesChartInst.destroy();
+
+            const labels = surnamesData.map(s => s.surname);
+            const counts = surnamesData.map(s => s.count);
+
+            surnamesChartInst = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Burials',
+                        data: counts,
+                        backgroundColor: 'rgba(139, 92, 246, 0.75)',
+                        borderColor: '#8b5cf6',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(51, 65, 85, 0.5)' } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function renderMonthChart(monthData) {
+            const ctx = document.getElementById('monthChart').getContext('2d');
+            if (monthChartInst) monthChartInst.destroy();
+
+            monthChartInst = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(monthData),
+                    datasets: [{
+                        label: 'Deaths',
+                        data: Object.values(monthData),
+                        backgroundColor: 'rgba(245, 158, 11, 0.75)',
+                        borderColor: '#f59e0b',
+                        borderWidth: 1,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.5)' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('analyticsCemSelect').addEventListener('change', (e) => {
+            fetchAnalyticsData(e.target.value);
+        });
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadAnalyticsCemeteriesDropdown();
+            fetchAnalyticsData();
+        });
+    </script>
+</body>
+</html>

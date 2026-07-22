@@ -12,6 +12,7 @@ import grave_digger
 import toolbox
 import gedcom_exporter
 import geo_utils
+import data_quality
 import io
 import glob
 import shutil
@@ -99,27 +100,26 @@ def discover_and_enqueue_burials(session, cemetery_id):
 
 def enqueue_family_urls(cemetery_id, group_name):
     conn = database.get_db_conn()
-    cursor = conn.cursor()
-    
-    # We search for family ids in the relationships table that belong to this cemetery,
-    # but aren't currently stashed in the memorials table or queued for download.
-    cursor.execute("""
-        SELECT DISTINCT r.to_memorial_id
-        FROM relationships r
-        JOIN memorials m ON r.from_memorial_id = m.id
-        WHERE m.cemetery_id = ? AND r.relationship_type = ?
-          AND r.to_memorial_id NOT IN (SELECT id FROM memorials)
-          AND r.to_memorial_id NOT IN (SELECT SUBSTR(url, INSTR(url, '/memorial/') + 10, INSTR(SUBSTR(url, INSTR(url, '/memorial/') + 10), '/') - 1) FROM download_queue WHERE url LIKE '%/memorial/%')
-          AND r.to_memorial_id NOT IN (SELECT url FROM download_queue WHERE url NOT LIKE '%/memorial/%');
-    """, (cemetery_id, group_name))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT DISTINCT r.to_memorial_id
+            FROM relationships r
+            JOIN memorials m ON r.from_memorial_id = m.id
+            WHERE m.cemetery_id = ? AND r.relationship_type = ?
+              AND r.to_memorial_id NOT IN (SELECT id FROM memorials)
+              AND NOT EXISTS (
+                  SELECT 1 FROM download_queue q
+                  WHERE q.url LIKE '%' || r.to_memorial_id || '%'
+              );
+        """, (cemetery_id, group_name))
+        rows = cursor.fetchall()
+    finally:
+        conn.close()
+        
     urls = []
     for r in rows:
         rel_id = r[0]
-        # Just use ID as fallback URL
         url = f"https://www.findagrave.com/memorial/{rel_id}"
         urls.append(url)
         
@@ -364,18 +364,73 @@ def scraper_worker():
                 pass
         log_gui("Background scraper thread stopped.")
 
-# --- API Endpoints ---
+# --- Page Navigation Routes ---
 
 @app.route('/')
 def home():
     return render_template('index.html')
 
+@app.route('/tree')
+def tree_page():
+    return render_template('tree.html')
+
+@app.route('/map')
+def map_page():
+    return render_template('map.html')
+
+@app.route('/analytics')
+def analytics_page():
+    return render_template('analytics.html')
+
+@app.route('/quality')
+def quality_page():
+    return render_template('quality.html')
+
+# --- API Endpoints ---
+
+@app.route('/api/analytics', methods=['GET'])
+def api_get_analytics():
+    try:
+        cemetery_id = request.args.get('cemetery_id')
+        data = database.get_analytics_summary(cemetery_id=cemetery_id)
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': f"Failed to compute analytics: {str(e)}"}), 500
+
+@app.route('/api/quality/audit', methods=['GET'])
+def api_get_quality_audit():
+    try:
+        cemetery_id = request.args.get('cemetery_id')
+        report = data_quality.run_quality_audit(cemetery_id=cemetery_id)
+        return jsonify(report)
+    except Exception as e:
+        return jsonify({'error': f"Quality audit failed: {str(e)}"}), 500
+
+@app.route('/api/quality/search', methods=['GET'])
+def api_get_quality_search():
+    try:
+        q = request.args.get('q', '')
+        cemetery_id = request.args.get('cemetery_id')
+        res = data_quality.search_inscriptions_and_bios(query=q, cemetery_id=cemetery_id)
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({'error': f"Full-text search failed: {str(e)}"}), 500
+
+@app.route('/api/quality/sync', methods=['GET'])
+def api_get_quality_sync():
+    try:
+        cemetery_id = request.args.get('cemetery_id')
+        report = data_quality.get_stash_sync_report(cemetery_id=cemetery_id)
+        return jsonify(report)
+    except Exception as e:
+        return jsonify({'error': f"Stash sync report failed: {str(e)}"}), 500
+
 @app.route('/api/cemeteries', methods=['GET'])
 def api_get_cemeteries():
     cemeteries = database.get_cemeteries()
+    all_stats = database.get_all_queue_stats()
     for cem in cemeteries:
-        stats = database.get_queue_stats(cem['id'])
-        cem['queue_stats'] = stats
+        cem['queue_stats'] = all_stats.get(cem['id'], {'pending': 0, 'downloading': 0, 'failed': 0})
     return jsonify(cemeteries)
 
 @app.route('/api/cemeteries/<cemetery_id>', methods=['GET'])
@@ -568,157 +623,164 @@ def api_get_memorial_graph(memorial_id):
     descendant_depth = int(request.args.get('descendants', 2))
     
     conn = database.get_db_conn()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id FROM memorials WHERE id = ?", (memorial_id,))
-    exists = cursor.fetchone()
-    if not exists:
-        conn.close()
-        return jsonify({'error': 'Memorial not found'}), 404
+    try:
+        cursor = conn.cursor()
         
-    nodes = {}
-    edges = set()
-    
-    def get_mem_name(mem_id):
-        cursor.execute("SELECT name, birth_date, death_date FROM memorials WHERE id = ?", (mem_id,))
-        row = cursor.fetchone()
-        if row:
-            name_val = row['name']
-            birth = row['birth_date']
-            death = row['death_date']
+        cursor.execute("SELECT id FROM memorials WHERE id = ?", (memorial_id,))
+        exists = cursor.fetchone()
+        if not exists:
+            return jsonify({'error': 'Memorial not found'}), 404
             
-            birth_yr, death_yr = "?", "?"
-            if birth:
-                m = re.search(r'\b\d{4}\b', birth)
-                if m:
-                    birth_yr = m.group(0)
-            if death:
-                m = re.search(r'\b\d{4}\b', death)
-                if m:
-                    death_yr = m.group(0)
-                    
-            if birth or death:
-                return f"{name_val}\n({birth_yr} - {death_yr})"
-            return name_val
-        return f"ID: {mem_id}"
+        nodes = {}
+        edges = set()
+        name_cache = {}
         
-    queue = [(memorial_id, 0, 'focus', 0)]
-    visited = set()
-    
-    while queue:
-        curr_id, depth, rel_group, level = queue.pop(0)
-        if curr_id in visited:
-            continue
-        visited.add(curr_id)
-        
-        if curr_id not in nodes:
-            nodes[curr_id] = {
-                'id': curr_id,
-                'label': get_mem_name(curr_id),
-                'group': rel_group,
-                'level': level
-            }
-            
-        # Generation boundary checks
-        if rel_group in ['ancestor', 'spouse_ancestor'] and abs(level) >= ancestor_depth:
-            continue
-        if rel_group == 'descendant' and abs(level) >= descendant_depth:
-            continue
-        if rel_group in ['focus_sibling', 'spouse_sibling', 'sibling']:
-            continue
-            
-        cursor.execute("""
-            SELECT to_memorial_id, relationship_type, 'to' as dir 
-            FROM relationships 
-            WHERE from_memorial_id = ?
-            UNION
-            SELECT from_memorial_id, relationship_type, 'from' as dir
-            FROM relationships
-            WHERE to_memorial_id = ?;
-        """, (curr_id, curr_id))
-        
-        rows = cursor.fetchall()
-        for r in rows:
-            rel_id = r[0]
-            rel_type = r[1]
-            direction = r[2]
-            
-            logical_rel = None
-            if direction == 'to':
-                logical_rel = rel_type
+        def get_mem_name(mem_id):
+            if mem_id in name_cache:
+                return name_cache[mem_id]
+            cursor.execute("SELECT name, birth_date, death_date FROM memorials WHERE id = ?", (mem_id,))
+            row = cursor.fetchone()
+            if row:
+                name_val = row['name']
+                birth = row['birth_date']
+                death = row['death_date']
+                
+                birth_yr, death_yr = "?", "?"
+                if birth:
+                    m = re.search(r'\b\d{4}\b', birth)
+                    if m:
+                        birth_yr = m.group(0)
+                if death:
+                    m = re.search(r'\b\d{4}\b', death)
+                    if m:
+                        death_yr = m.group(0)
+                        
+                if birth or death:
+                    res = f"{name_val}\n({birth_yr} - {death_yr})"
+                else:
+                    res = name_val
             else:
-                if rel_type == 'parent':
-                    logical_rel = 'child'
-                elif rel_type == 'child':
-                    logical_rel = 'parent'
-                else:
-                    logical_rel = rel_type
-                    
-            next_group = rel_group
-            edge_label = logical_rel.capitalize()
-            next_level = level
+                res = f"ID: {mem_id}"
+            name_cache[mem_id] = res
+            return res
             
-            if rel_group == 'focus':
-                if logical_rel == 'parent':
-                    if ancestor_depth > 0:
-                        next_group = 'ancestor'
-                        next_level = level - 1
-                    else:
-                        continue
-                elif logical_rel == 'child':
-                    if descendant_depth > 0:
-                        next_group = 'descendant'
-                        next_level = level + 1
-                    else:
-                        continue
-                elif logical_rel == 'spouse':
-                    next_group = 'spouse'
-                    next_level = level
-                elif logical_rel in ['sibling', 'half-sibling']:
-                    next_group = 'focus_sibling'
-                    next_level = level
-            elif rel_group == 'spouse':
-                if logical_rel in ['sibling', 'half-sibling']:
-                    next_group = 'spouse_sibling'
-                    next_level = level
-                elif logical_rel == 'parent':
-                    if ancestor_depth > 0:
-                        next_group = 'spouse_ancestor'
-                        next_level = level - 1
-                    else:
-                        continue
-                elif logical_rel == 'child':
-                    if descendant_depth > 0:
-                        next_group = 'descendant'
-                        next_level = level + 1
-                    else:
-                        continue
-            elif rel_group in ['ancestor', 'spouse_ancestor']:
-                if logical_rel == 'parent':
-                    next_group = rel_group
-                    next_level = level - 1
-                else:
-                    continue
-            elif rel_group == 'descendant':
-                if logical_rel == 'child':
-                    next_group = 'descendant'
-                    next_level = level + 1
-                else:
-                    continue
-            else:
+        queue = [(memorial_id, 0, 'focus', 0)]
+        visited = set()
+        
+        while queue:
+            curr_id, depth, rel_group, level = queue.pop(0)
+            if curr_id in visited:
+                continue
+            visited.add(curr_id)
+            
+            if curr_id not in nodes:
+                nodes[curr_id] = {
+                    'id': curr_id,
+                    'label': get_mem_name(curr_id),
+                    'group': rel_group,
+                    'level': level
+                }
+                
+            # Generation boundary checks
+            if rel_group in ['ancestor', 'spouse_ancestor'] and abs(level) >= ancestor_depth:
+                continue
+            if rel_group == 'descendant' and abs(level) >= descendant_depth:
+                continue
+            if rel_group in ['focus_sibling', 'spouse_sibling', 'sibling']:
                 continue
                 
-            edges.add((curr_id, rel_id, edge_label))
+            cursor.execute("""
+                SELECT to_memorial_id, relationship_type, 'to' as dir 
+                FROM relationships 
+                WHERE from_memorial_id = ?
+                UNION
+                SELECT from_memorial_id, relationship_type, 'from' as dir
+                FROM relationships
+                WHERE to_memorial_id = ?;
+            """, (curr_id, curr_id))
             
-            if rel_id not in visited:
-                queue.append((rel_id, depth + 1, next_group, next_level))
+            rows = cursor.fetchall()
+            for r in rows:
+                rel_id = r[0]
+                rel_type = r[1]
+                direction = r[2]
                 
-    conn.close()
-    
-    return jsonify({
-        'nodes': list(nodes.values()),
-        'edges': [{'from': e[0], 'to': e[1], 'label': e[2]} for e in edges]
-    })
+                logical_rel = None
+                if direction == 'to':
+                    logical_rel = rel_type
+                else:
+                    if rel_type == 'parent':
+                        logical_rel = 'child'
+                    elif rel_type == 'child':
+                        logical_rel = 'parent'
+                    else:
+                        logical_rel = rel_type
+                        
+                next_group = rel_group
+                edge_label = logical_rel.capitalize()
+                next_level = level
+                
+                if rel_group == 'focus':
+                    if logical_rel == 'parent':
+                        if ancestor_depth > 0:
+                            next_group = 'ancestor'
+                            next_level = level - 1
+                        else:
+                            continue
+                    elif logical_rel == 'child':
+                        if descendant_depth > 0:
+                            next_group = 'descendant'
+                            next_level = level + 1
+                        else:
+                            continue
+                    elif logical_rel == 'spouse':
+                        next_group = 'spouse'
+                        next_level = level
+                    elif logical_rel in ['sibling', 'half-sibling']:
+                        next_group = 'focus_sibling'
+                        next_level = level
+                elif rel_group == 'spouse':
+                    if logical_rel in ['sibling', 'half-sibling']:
+                        next_group = 'spouse_sibling'
+                        next_level = level
+                    elif logical_rel == 'parent':
+                        if ancestor_depth > 0:
+                            next_group = 'spouse_ancestor'
+                            next_level = level - 1
+                        else:
+                            continue
+                    elif logical_rel == 'child':
+                        if descendant_depth > 0:
+                            next_group = 'descendant'
+                            next_level = level + 1
+                        else:
+                            continue
+                elif rel_group in ['ancestor', 'spouse_ancestor']:
+                    if logical_rel == 'parent':
+                        next_group = rel_group
+                        next_level = level - 1
+                    else:
+                        continue
+                elif rel_group == 'descendant':
+                    if logical_rel == 'child':
+                        next_group = 'descendant'
+                        next_level = level + 1
+                    else:
+                        continue
+                else:
+                    continue
+                    
+                edges.add((curr_id, rel_id, edge_label))
+                
+                if rel_id not in visited:
+                    queue.append((rel_id, depth + 1, next_group, next_level))
+                    
+        return jsonify({
+            'nodes': list(nodes.values()),
+            'edges': [{'from': e[0], 'to': e[1], 'label': e[2]} for e in edges]
+        })
+    finally:
+        conn.close()
 
 @app.route('/api/export', methods=['POST'])
 def api_export():

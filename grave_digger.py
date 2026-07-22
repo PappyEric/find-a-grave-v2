@@ -1127,11 +1127,13 @@ def parse_memorial_from_html(html_content, memorial_url):
 	bio_name_el = soup.find(id='bio-name')
 	name_parts = parse_detailed_name(bio_name_el)
 	
-	# Get surname
+	# Get surname (only if not a numeric memorial ID string)
 	parts = memorial_url.split('/')
 	this_name_string = parts[-1]
 	url_name_parts = re.split('-|_', this_name_string)
-	surname = unquote(url_name_parts[-1].capitalize()) if url_name_parts else ''
+	surname = ''
+	if url_name_parts and not url_name_parts[-1].isdigit():
+		surname = unquote(url_name_parts[-1].capitalize())
 	
 	birth_date = soup_find(soup, 'birth') or ''
 	birth_location = soup_find(soup, 'birth_location') or ''
@@ -1186,6 +1188,7 @@ def parse_memorial_from_html(html_content, memorial_url):
 	}
 	# Merge name parts into result
 	result.update(name_parts)
+	soup.decompose()
 	return result
 
 # --------------------------------------------\
@@ -1212,6 +1215,7 @@ def extract_relationships_from_html(html_content, memorial_id):
 						'to_id': rel_id,
 						'type': group_name
 					})
+	soup.decompose()
 	return relationships
 
 # ------------------------------------------------/

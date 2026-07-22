@@ -515,27 +515,37 @@
             color: var(--text-primary);
         }
     </style>
-    <!-- Leaflet.js Mapping Library -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Vis.js Network standalone library -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 </head>
 <body>
     <div class="container">
+        <!-- Top Navigation Bar -->
+        <nav class="main-navbar" style="display: flex; align-items: center; justify-content: space-between; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem 1.5rem; box-shadow: var(--shadow);">
+            <div class="nav-brand">
+                <a href="/" style="text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🪦 Find a Grave Tools</span>
+                    <span style="font-size: 0.7rem; background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.3);">v2.5</span>
+                </a>
+            </div>
+            <div class="nav-links" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(15, 23, 42, 0.5); padding: 0.35rem; border-radius: 10px; border: 1px solid var(--border-color);">
+                <a href="/" class="nav-item active" style="text-decoration: none; color: #fff; background: var(--accent-blue); font-weight: 600; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📊 Dashboard</a>
+                <a href="/tree" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🌳 Family Tree</a>
+                <a href="/map" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🗺️ GIS Cemetery Map</a>
+                <a href="/analytics" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📈 Analytics</a>
+                <a href="/quality" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🔍 Data Quality</a>
+            </div>
+            <div class="header-actions" style="display: flex; gap: 0.75rem;">
+                <button class="btn btn-secondary btn-small" id="exportGedcomBtn">🌳 Export GEDCOM</button>
+                <button class="btn btn-green btn-small" id="exportBtn">📊 Excel Report</button>
+            </div>
+        </nav>
+
         <!-- Header -->
         <header>
             <div>
-                <h1>Find a Grave Scraping & Analysis Tools</h1>
-                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Genealogy Burials Collection & Family Tree Stash Manager</p>
-            </div>
-            <div class="header-actions">
-                <button class="btn btn-secondary" id="exportGedcomBtn">
-                    🌳 Export GEDCOM
-                </button>
-                <button class="btn btn-green" id="exportBtn">
-                    📊 Generate Excel Report
-                </button>
+                <h1>Cemetery & Memorial Dashboard</h1>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Stashed Burials Registry & Automated Scraper Monitor</p>
             </div>
         </header>
 
@@ -635,57 +645,6 @@
                     <!-- Logs stream -->
                     [Console] Waiting for active scraping job...
                 </div>
-            </div>
-
-            <!-- Interactive Cemetery Map & Proximity Finder Section -->
-            <div class="card explorer-section" id="mapCard" style="grid-column: span 2; margin-bottom: 1.5rem;">
-                <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>🗺️ Cemetery GPS Plot Map & Proximity Finder</span>
-                    <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-secondary);" id="mapStatusText">Showing stashed burial coordinates</span>
-                </div>
-                
-                <!-- Map Toolbar Controls -->
-                <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; background-color: #0f172a; padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 180px;">
-                        <label for="mapCemSelect" style="font-size: 0.8rem; color: var(--text-secondary);">Filter Cemetery</label>
-                        <select id="mapCemSelect" style="width: 100%; height: 38px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 0.5rem;">
-                            <option value="all">All Cemeteries with GPS</option>
-                        </select>
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 180px;">
-                        <label for="mapSurnameInput" style="font-size: 0.8rem; color: var(--text-secondary);">Surname Cluster Search</label>
-                        <input type="text" id="mapSurnameInput" placeholder="e.g. Chabot, Smith..." style="width: 100%; height: 38px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 0.5rem;">
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem; flex: 1; min-width: 160px;">
-                        <label for="mapFocusIdInput" style="font-size: 0.8rem; color: var(--text-secondary);">Focus Grave ID (Proximity)</label>
-                        <input type="text" id="mapFocusIdInput" placeholder="e.g. 215309628" style="width: 100%; height: 38px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 0.5rem;">
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; gap: 0.25rem; width: 110px;">
-                        <label for="mapRadiusSelect" style="font-size: 0.8rem; color: var(--text-secondary);">Radius (Feet)</label>
-                        <select id="mapRadiusSelect" style="width: 100%; height: 38px; background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 0.5rem;">
-                            <option value="50">50 ft</option>
-                            <option value="100" selected>100 ft</option>
-                            <option value="250">250 ft</option>
-                            <option value="500">500 ft</option>
-                            <option value="1000">1000 ft</option>
-                        </select>
-                    </div>
-
-                    <div style="display: flex; gap: 0.5rem; height: 38px;">
-                        <button class="btn btn-green" id="findNearbyBtn" style="white-space: nowrap; font-size: 0.85rem;">
-                            📍 Find Nearby
-                        </button>
-                        <button class="btn btn-secondary" id="resetMapBtn" style="white-space: nowrap; font-size: 0.85rem;">
-                            🧹 Reset
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Leaflet Map Container -->
-                <div id="cemeteryMap" style="width: 100%; height: 520px; border-radius: 8px; border: 1px solid var(--border-color); background-color: #1a1a1a; z-index: 1;"></div>
             </div>
 
             <!-- Explorer/Table View (full width bottom) -->
@@ -1001,7 +960,6 @@
             loadCemeteries();
             loadMemorials();
             startPollingScraper();
-            initCemeteryMap();
         });
 
         // Load Cemeteries
@@ -1907,403 +1865,18 @@
             if(e.target === cemModal) closeCemModal(); 
         });
 
-        // Leaflet.js Cemetery GPS Map & Proximity Finder Logic
-        let leafletMap = null;
-        let mapMarkersGroup = null;
-        let mapRadiusCircle = null;
-        let currentMapBurials = [];
-
-        function initCemeteryMap() {
-            const mapContainer = document.getElementById('cemeteryMap');
-            if (!mapContainer || leafletMap) return;
-
-            leafletMap = L.map('cemeteryMap', {
-                center: [39.8283, -98.5795],
-                zoom: 4
-            });
-
-            const streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-            });
-
-            const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                maxZoom: 19,
-                attribution: 'Tiles © Esri'
-            });
-
-            // Default to satellite tile for aerial imagery of cemetery grounds
-            satelliteTile.addTo(leafletMap);
-
-            const baseLayers = {
-                "🛰️ Satellite Aerial View": satelliteTile,
-                "🗺️ Street & Terrain Map": streetTile
-            };
-            L.control.layers(baseLayers).addTo(leafletMap);
-
-            mapMarkersGroup = L.layerGroup().addTo(leafletMap);
-
-            loadMapBurials();
+        // Map Page Navigation Handlers
+        function focusCemeteryOnMap(cemeteryId, lat, lng) {
+            window.location.href = `/map?cemetery=${encodeURIComponent(cemeteryId)}`;
         }
 
-        async function loadMapBurials() {
-            if (!leafletMap) return;
-
-            const cemId = document.getElementById('mapCemSelect').value || 'all';
-            const surname = document.getElementById('mapSurnameInput').value.trim();
-
-            document.getElementById('mapStatusText').textContent = 'Loading coordinates...';
-            mapMarkersGroup.clearLayers();
-            if (mapRadiusCircle) {
-                leafletMap.removeLayer(mapRadiusCircle);
-                mapRadiusCircle = null;
-            }
-
-            // Mode 1: All Cemeteries Overview Map (when cemetery filter is 'all' and no surname is typed)
-            if (cemId === 'all' && !surname) {
-                try {
-                    const res = await fetch('/api/map/cemeteries');
-                    const data = await res.json();
-                    if (!res.ok) {
-                        document.getElementById('mapStatusText').textContent = 'Error loading cemeteries map';
-                        return;
-                    }
-
-                    const cemeteriesList = data.cemeteries || [];
-                    document.getElementById('mapStatusText').textContent = `Plotting ${cemeteriesList.length} cemeteries on map`;
-
-                    const bounds = [];
-                    cemeteriesList.forEach(cem => {
-                        const lat = parseFloat(cem.gps_lat);
-                        const lng = parseFloat(cem.gps_lng);
-                        if (isNaN(lat) || isNaN(lng)) return;
-
-                        bounds.push([lat, lng]);
-
-                        const circleMarker = L.circleMarker([lat, lng], {
-                            radius: 10,
-                            fillColor: '#8b5cf6', // vibrant purple/indigo for cemetery pins
-                            color: '#ffffff',
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.9
-                        });
-
-                        const popupHtml = `
-                            <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #1e293b; max-width: 250px;">
-                                <strong style="font-size: 0.95rem; color: #4c1d95; display: block; margin-bottom: 0.25rem;">🏛️ ${cem.name || 'Cemetery'}</strong>
-                                <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.4rem;">
-                                    📍 ${cem.location || 'Location unmapped'}<br>
-                                    📊 <strong>${cem.burial_count || 0}</strong> stashed burials
-                                </div>
-                                <div style="font-size: 0.75rem; color: #475569; margin-bottom: 0.5rem;">
-                                    📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}
-                                </div>
-                                <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                                    <button onclick="filterMapToCemetery('${cem.id}');" style="padding: 0.35rem 0.6rem; background: #8b5cf6; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer;">
-                                        🔍 Show Burial Graves on Map
-                                    </button>
-                                    <button onclick="showCemeteryDetails('${cem.id}');" style="padding: 0.35rem 0.6rem; background: #0284c7; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer;">
-                                        🏛️ View Cemetery Profile & Registry
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-
-                        circleMarker.bindPopup(popupHtml);
-                        mapMarkersGroup.addLayer(circleMarker);
-                    });
-
-                    if (bounds.length > 0) {
-                        leafletMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
-                    }
-                    return;
-                } catch (err) {
-                    document.getElementById('mapStatusText').textContent = 'Failed to load cemeteries: ' + err.message;
-                    return;
-                }
-            }
-
-            // Mode 2: Specific Cemetery or Surname-filtered Memorial Burials Map
-            try {
-                let url = `/api/map/burials?cemetery_id=${encodeURIComponent(cemId)}`;
-                if (surname) url += `&surname=${encodeURIComponent(surname)}`;
-
-                const res = await fetch(url);
-                const data = await res.json();
-
-                if (!res.ok) {
-                    document.getElementById('mapStatusText').textContent = 'Error loading map data';
-                    return;
-                }
-
-                currentMapBurials = data.burials || [];
-                const cemName = cemId !== 'all' ? (document.getElementById('mapCemSelect').selectedOptions[0]?.text || cemId) : 'All Cemeteries';
-                document.getElementById('mapStatusText').textContent = `Plotting ${currentMapBurials.length} memorial grave(s) (${cemName})`;
-
-                if (currentMapBurials.length === 0) {
-                    return;
-                }
-
-                const bounds = [];
-                currentMapBurials.forEach(b => {
-                    const lat = parseFloat(b.gps_lat);
-                    const lng = parseFloat(b.gps_lng);
-                    if (isNaN(lat) || isNaN(lng)) return;
-
-                    bounds.push([lat, lng]);
-
-                    const isMatchedSurname = surname && (
-                        (b.surname && b.surname.toLowerCase().includes(surname.toLowerCase())) ||
-                        (b.last_name && b.last_name.toLowerCase().includes(surname.toLowerCase())) ||
-                        (b.maiden_name && b.maiden_name.toLowerCase().includes(surname.toLowerCase()))
-                    );
-
-                    let markerColor = '#17a2b8'; // standard cyan
-                    let radiusSize = 7;
-                    if (isMatchedSurname) {
-                        markerColor = '#f59e0b'; // amber/gold for surname cluster
-                        radiusSize = 9;
-                    }
-
-                    const circleMarker = L.circleMarker([lat, lng], {
-                        radius: radiusSize,
-                        fillColor: markerColor,
-                        color: '#ffffff',
-                        weight: 1.5,
-                        opacity: 1,
-                        fillOpacity: 0.85
-                    });
-
-                    const popupHtml = `
-                        <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #1e293b; max-width: 240px;">
-                            <strong style="font-size: 0.95rem; color: #0f172a; display: block; margin-bottom: 0.25rem;">🪦 ${b.name || 'Unknown'}</strong>
-                            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.4rem;">
-                                ${b.birth_date || '?'} – ${b.death_date || '?'}<br>
-                                🏛️ ${b.cemetery_name || 'Cemetery'} (Plot: ${b.plot || 'N/A'})
-                            </div>
-                            <div style="font-size: 0.75rem; color: #475569; margin-bottom: 0.5rem;">
-                                📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 0.3rem;">
-                                <button onclick="showMemorialDetails('${b.id}');" style="padding: 0.3rem 0.6rem; background: #3b82f6; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer;">
-                                    🪦 View Profile Details
-                                </button>
-                                <button onclick="setFocusAndSearchProximity('${b.id}');" style="padding: 0.3rem 0.6rem; background: #10b981; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer;">
-                                    📍 Search Proximity Around This Grave
-                                </button>
-                            </div>
-                        </div>
-                    `;
-
-                    circleMarker.bindPopup(popupHtml);
-                    mapMarkersGroup.addLayer(circleMarker);
-                });
-
-                if (bounds.length > 0) {
-                    leafletMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
-                }
-            } catch (err) {
-                document.getElementById('mapStatusText').textContent = 'Failed to load map: ' + err.message;
-            }
-        }
-
-        function filterMapToCemetery(cemId) {
-            document.getElementById('mapCemSelect').value = cemId;
-            loadMapBurials();
-        }
-
-        async function findNearbyGraves() {
-            const focusId = document.getElementById('mapFocusIdInput').value.trim();
-            const radiusFeet = parseFloat(document.getElementById('mapRadiusSelect').value) || 100;
-            const cemId = document.getElementById('mapCemSelect').value || 'all';
-
-            if (!focusId) {
-                alert("Please enter a Focus Grave Memorial ID.");
-                return;
-            }
-
-            document.getElementById('mapStatusText').textContent = `Calculating nearby graves within ${radiusFeet} ft...`;
-
-            try {
-                const res = await fetch(`/api/memorials/${focusId}/proximity?radius_feet=${radiusFeet}&cemetery_id=${encodeURIComponent(cemId)}`);
-                const data = await res.json();
-
-                if (!res.ok) {
-                    alert(data.error || "Proximity search failed.");
-                    document.getElementById('mapStatusText').textContent = 'Proximity search failed';
-                    return;
-                }
-
-                mapMarkersGroup.clearLayers();
-                if (mapRadiusCircle) {
-                    leafletMap.removeLayer(mapRadiusCircle);
-                    mapRadiusCircle = null;
-                }
-
-                const focusMem = data.focus_memorial;
-                const fLat = parseFloat(focusMem.gps_lat);
-                const fLng = parseFloat(focusMem.gps_lng);
-
-                // Add translucent distance circle around focus grave
-                const radiusMeters = radiusFeet * 0.3048;
-                mapRadiusCircle = L.circle([fLat, fLng], {
-                    radius: radiusMeters,
-                    color: '#3b82f6',
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.15,
-                    weight: 2,
-                    dashArray: '6, 6'
-                }).addTo(leafletMap);
-
-                // Add Focus Marker (Bright blue with star indicator)
-                const focusMarker = L.circleMarker([fLat, fLng], {
-                    radius: 11,
-                    fillColor: '#3b82f6',
-                    color: '#ffffff',
-                    weight: 3,
-                    opacity: 1,
-                    fillOpacity: 1
-                });
-
-                focusMarker.bindPopup(`
-                    <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #1e293b;">
-                        <strong style="color: #2563eb; font-size: 0.95rem;">⭐ FOCUS GRAVE</strong><br>
-                        <strong>${focusMem.name}</strong> (ID: ${focusMem.id})<br>
-                        Plot: ${focusMem.plot || 'N/A'}<br>
-                        <span style="font-size: 0.75rem; color: #64748b;">📍 ${fLat.toFixed(5)}, ${fLng.toFixed(5)}</span><br>
-                        <button onclick="showMemorialDetails('${focusMem.id}');" style="margin-top: 0.4rem; padding: 0.3rem 0.6rem; background: #3b82f6; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer; width: 100%;">
-                            View Focus Profile
-                        </button>
-                    </div>
-                `);
-                mapMarkersGroup.addLayer(focusMarker);
-
-                const bounds = [[fLat, fLng]];
-
-                // Plot nearby graves
-                const nearbyList = data.nearby_burials || [];
-                document.getElementById('mapStatusText').textContent = `Found ${nearbyList.length} grave(s) within ${radiusFeet} ft of ${focusMem.name}`;
-
-                nearbyList.forEach(nb => {
-                    const lat = parseFloat(nb.gps_lat);
-                    const lng = parseFloat(nb.gps_lng);
-                    bounds.push([lat, lng]);
-
-                    const nearbyMarker = L.circleMarker([lat, lng], {
-                        radius: 8,
-                        fillColor: '#10b981', // vibrant green
-                        color: '#ffffff',
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    });
-
-                    const popupHtml = `
-                        <div style="font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #1e293b; max-width: 240px;">
-                            <strong style="font-size: 0.95rem; color: #047857; display: block; margin-bottom: 0.25rem;">${nb.name || 'Unknown'}</strong>
-                            <div style="font-size: 0.8rem; font-weight: 600; color: #10b981; margin-bottom: 0.3rem;">
-                                📏 ${nb.distance_feet} feet away (${nb.distance_meters} m)
-                            </div>
-                            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.4rem;">
-                                ${nb.birth_date || '?'} – ${nb.death_date || '?'}<br>
-                                🏛️ ${nb.cemetery_name || 'Cemetery'} (Plot: ${nb.plot || 'N/A'})
-                            </div>
-                            <button onclick="showMemorialDetails('${nb.id}');" style="padding: 0.3rem 0.6rem; background: #10b981; color: white; border: none; border-radius: 4px; font-weight: 600; font-size: 0.75rem; cursor: pointer; width: 100%;">
-                                🪦 View Profile Details
-                            </button>
-                        </div>
-                    `;
-
-                    nearbyMarker.bindPopup(popupHtml);
-                    mapMarkersGroup.addLayer(nearbyMarker);
-                });
-
-                if (bounds.length > 0) {
-                    leafletMap.fitBounds(bounds, { padding: [50, 50], maxZoom: 19 });
-                }
-            } catch (err) {
-                alert("Proximity search failed: " + err.message);
-                document.getElementById('mapStatusText').textContent = 'Proximity error';
-            }
-        }
-
-        function setFocusAndSearchProximity(memId) {
-            document.getElementById('mapFocusIdInput').value = memId;
-            findNearbyGraves();
-        }
-
-        async function focusCemeteryOnMap(cemeteryId, lat, lng) {
-            closeModal();
-            closeCemModal();
-
-            const mapCard = document.getElementById('mapCard');
-            if (mapCard) {
-                mapCard.scrollIntoView({ behavior: 'smooth' });
-            }
-
-            const mapCemSelect = document.getElementById('mapCemSelect');
-            if (mapCemSelect) {
-                mapCemSelect.value = 'all'; // Keep overview mode active to show surrounding cemeteries
-            }
-            document.getElementById('mapSurnameInput').value = '';
-            document.getElementById('mapFocusIdInput').value = '';
-
-            await loadMapBurials();
-
-            if (leafletMap && lat && lng) {
-                leafletMap.setView([parseFloat(lat), parseFloat(lng)], 14, { animate: true });
-
-                setTimeout(() => {
-                    if (mapMarkersGroup) {
-                        mapMarkersGroup.eachLayer(layer => {
-                            if (layer.getLatLng) {
-                                const pos = layer.getLatLng();
-                                if (Math.abs(pos.lat - parseFloat(lat)) < 0.0001 && Math.abs(pos.lng - parseFloat(lng)) < 0.0001) {
-                                    layer.openPopup();
-                                }
-                            }
-                        });
-                    }
-                }, 300);
-            }
-        }
-
-        async function focusMemorialOnMap(memorialId, lat, lng, cemeteryId) {
-            closeModal();
-            closeCemModal();
-
-            const mapCard = document.getElementById('mapCard');
-            if (mapCard) {
-                mapCard.scrollIntoView({ behavior: 'smooth' });
-            }
-
-            document.getElementById('mapFocusIdInput').value = memorialId;
-            if (cemeteryId && document.getElementById('mapCemSelect')) {
-                document.getElementById('mapCemSelect').value = cemeteryId;
-            }
-
-            await findNearbyGraves();
+        function focusMemorialOnMap(memorialId, lat, lng, cemeteryId) {
+            window.location.href = `/map?focus=${encodeURIComponent(memorialId)}`;
         }
 
         function openMapForMemorial(memId) {
-            document.getElementById('mapFocusIdInput').value = memId;
-            const mapCard = document.getElementById('mapCard');
-            if (mapCard) {
-                mapCard.scrollIntoView({ behavior: 'smooth' });
-            }
-            findNearbyGraves();
+            window.location.href = `/map?focus=${encodeURIComponent(memId)}`;
         }
-
-        // Map Control Event Listeners
-        document.getElementById('mapCemSelect').addEventListener('change', loadMapBurials);
-        document.getElementById('mapSurnameInput').addEventListener('input', loadMapBurials);
-        document.getElementById('findNearbyBtn').addEventListener('click', findNearbyGraves);
-        document.getElementById('resetMapBtn').addEventListener('click', () => {
-            document.getElementById('mapSurnameInput').value = '';
-            document.getElementById('mapFocusIdInput').value = '';
-            loadMapBurials();
-        });
     </script>
 </body>
 </html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Tree Explorer - Find a Grave Tools</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-primary); padding: 1.5rem; min-height: 100vh; }
+        .container { max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.25rem; }
+
+        .btn {
+            background-color: var(--accent-blue);
+            color: #ffffff;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            text-decoration: none;
+        }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-secondary { background-color: var(--border-color); color: var(--text-primary); }
+        .btn-green { background-color: var(--accent-green); color: #fff; }
+
+        .toolbar-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            box-shadow: var(--shadow);
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex: 1;
+            max-width: 450px;
+        }
+
+        input[type="text"], select {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.5rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            width: 100%;
+        }
+
+        .depth-controls {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .depth-group { display: flex; align-items: center; gap: 0.5rem; }
+
+        .canvas-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            position: relative;
+            height: calc(100vh - 220px);
+            min-height: 620px;
+        }
+
+        #treeCanvas { width: 100%; height: 100%; background-color: #0b1120; }
+
+        .focus-info-banner {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.75rem 1rem;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            box-shadow: var(--shadow);
+        }
+
+        .legend-card {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.6rem 0.9rem;
+            font-size: 0.75rem;
+            z-index: 10;
+            display: flex;
+            gap: 1rem;
+            box-shadow: var(--shadow);
+        }
+        .legend-item { display: flex; align-items: center; gap: 0.4rem; color: var(--text-secondary); }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+        /* Modal styling */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            width: 100%; max-width: 650px;
+            padding: 1.75rem;
+            box-shadow: var(--shadow);
+            max-height: 90vh; overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Navigation Bar -->
+        <nav class="main-navbar" style="display: flex; align-items: center; justify-content: space-between; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem 1.5rem; box-shadow: var(--shadow);">
+            <div class="nav-brand">
+                <a href="/" style="text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🪦 Find a Grave Tools</span>
+                    <span style="font-size: 0.7rem; background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.3);">v2.5</span>
+                </a>
+            </div>
+            <div class="nav-links" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(15, 23, 42, 0.5); padding: 0.35rem; border-radius: 10px; border: 1px solid var(--border-color);">
+                <a href="/" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📊 Dashboard</a>
+                <a href="/tree" style="text-decoration: none; color: #fff; background: var(--accent-blue); font-weight: 600; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🌳 Family Tree</a>
+                <a href="/map" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🗺️ GIS Cemetery Map</a>
+                <a href="/analytics" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📈 Analytics</a>
+                <a href="/quality" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🔍 Data Quality</a>
+            </div>
+            <div>
+                <button class="btn btn-secondary btn-small" id="exportFocusGedcomBtn">🌳 Export Person GEDCOM</button>
+            </div>
+        </nav>
+
+        <!-- Toolbar -->
+        <div class="toolbar-card">
+            <div class="search-box">
+                <input type="text" id="focusInput" placeholder="Enter Focus Memorial ID or Name..." />
+                <button class="btn" id="loadTreeBtn">🔍 Load Tree</button>
+            </div>
+
+            <div class="depth-controls">
+                <div class="depth-group">
+                    <label>Ancestors:</label>
+                    <input type="range" id="ancestorsSlider" min="0" max="5" value="2" style="width: 80px;" />
+                    <span id="ancestorsVal" style="font-weight: 600; color: var(--text-primary);">2</span>
+                </div>
+                <div class="depth-group">
+                    <label>Descendants:</label>
+                    <input type="range" id="descendantsSlider" min="0" max="5" value="2" style="width: 80px;" />
+                    <span id="descendantsVal" style="font-weight: 600; color: var(--text-primary);">2</span>
+                </div>
+                <button class="btn btn-secondary" id="resetLayoutBtn">🔄 Center View</button>
+            </div>
+        </div>
+
+        <!-- Canvas Card -->
+        <div class="canvas-card">
+            <div class="focus-info-banner" id="focusBanner" style="display: none;">
+                <div>
+                    <h4 id="bannerName" style="font-weight: 700; color: #60a5fa; font-size: 1rem;">-</h4>
+                    <p id="bannerMeta" style="font-size: 0.8rem; color: var(--text-secondary);">-</p>
+                </div>
+                <button class="btn btn-secondary" id="bannerDetailsBtn" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">Profile Details</button>
+                <a href="#" id="bannerMapLink" class="btn btn-green" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; text-decoration: none;">🗺️ Map View</a>
+            </div>
+
+            <div id="treeCanvas"></div>
+
+            <div class="legend-card">
+                <div class="legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Focus Person</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #ec4899;"></span> Spouse</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #8b5cf6;"></span> Ancestor</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #10b981;"></span> Sibling</div>
+                <div class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Descendant</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memorial Details Modal -->
+    <div class="modal-overlay" id="detailsModal">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 id="modalName" style="color: #60a5fa;">Memorial Profile</h3>
+                <span class="close-btn" onclick="document.getElementById('detailsModal').classList.remove('active')" style="cursor: pointer; font-size: 1.4rem;">✕</span>
+            </div>
+            <div id="modalBody" style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;">
+                Loading memorial details...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let networkInstance = null;
+        let activeMemorialId = null;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramFocus = urlParams.get('focus');
+
+        document.getElementById('ancestorsSlider').addEventListener('input', (e) => {
+            document.getElementById('ancestorsVal').textContent = e.target.value;
+            if (activeMemorialId) loadFamilyTree(activeMemorialId);
+        });
+
+        document.getElementById('descendantsSlider').addEventListener('input', (e) => {
+            document.getElementById('descendantsVal').textContent = e.target.value;
+            if (activeMemorialId) loadFamilyTree(activeMemorialId);
+        });
+
+        document.getElementById('loadTreeBtn').addEventListener('click', () => {
+            const inputVal = document.getElementById('focusInput').value.trim();
+            if (inputVal) loadFamilyTree(inputVal);
+        });
+
+        document.getElementById('resetLayoutBtn').addEventListener('click', () => {
+            if (networkInstance) networkInstance.fit({ animation: true });
+        });
+
+        document.getElementById('exportFocusGedcomBtn').addEventListener('click', async () => {
+            if (!activeMemorialId) { alert("Please load a focus memorial tree first."); return; }
+            window.location.href = `/api/export/gedcom?memorial_id=${activeMemorialId}`;
+        });
+
+        async function loadFamilyTree(memId) {
+            if (!memId) return;
+            activeMemorialId = memId;
+
+            const ancDepth = document.getElementById('ancestorsSlider').value;
+            const desDepth = document.getElementById('descendantsSlider').value;
+
+            try {
+                const res = await fetch(`/api/memorials/${memId}/graph?ancestors=${ancDepth}&descendants=${desDepth}`);
+                if (!res.ok) {
+                    alert("Memorial not found or graph build failed.");
+                    return;
+                }
+                const data = await res.json();
+                renderGraph(data);
+                updateBanner(memId);
+            } catch (err) {
+                alert("Failed to load family graph: " + err.message);
+            }
+        }
+
+        async function updateBanner(memId) {
+            try {
+                const res = await fetch(`/api/memorials/${memId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('bannerName').textContent = `🌳 ${data.name || 'Memorial'}`;
+                    document.getElementById('bannerMeta').textContent = `ID: ${data.id} • ${data.birth_date || '?'} - ${data.death_date || '?'} • ${data.cemetery_name || 'Stashed Cemetery'}`;
+                    document.getElementById('bannerMapLink').href = `/map?focus=${data.id}`;
+                    document.getElementById('focusBanner').style.display = 'flex';
+
+                    document.getElementById('bannerDetailsBtn').onclick = () => showModalDetails(data);
+                }
+            } catch(e) {}
+        }
+
+        function showModalDetails(data) {
+            document.getElementById('modalName').textContent = data.name;
+            document.getElementById('modalBody').innerHTML = `
+                <p><strong>Memorial ID:</strong> ${data.id}</p>
+                <p><strong>Cemetery:</strong> ${data.cemetery_name || '-'}</p>
+                <p><strong>Dates:</strong> ${data.birth_date || 'Unknown'} — ${data.death_date || 'Unknown'}</p>
+                <p><strong>Plot:</strong> ${data.plot || 'Not specified'}</p>
+                <p><strong>GPS Coordinates:</strong> ${data.gps_lat ? `${data.gps_lat}, ${data.gps_lng}` : 'No GPS'}</p>
+                <p style="margin-top: 0.8rem;"><strong>Biography:</strong> ${data.bio || 'No biography text stashed.'}</p>
+                <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                    <a href="/map?focus=${data.id}" class="btn btn-green">🗺️ View on GIS Map</a>
+                    <a href="/api/export/gedcom?memorial_id=${data.id}" class="btn btn-secondary">🌳 Export GEDCOM</a>
+                </div>
+            `;
+            document.getElementById('detailsModal').classList.add('active');
+        }
+
+        function renderGraph(graphData) {
+            const container = document.getElementById('treeCanvas');
+            
+            const colorMap = {
+                'focus': { background: '#3b82f6', border: '#60a5fa' },
+                'spouse': { background: '#ec4899', border: '#f472b6' },
+                'ancestor': { background: '#8b5cf6', border: '#a78bfa' },
+                'spouse_ancestor': { background: '#a855f7', border: '#c084fc' },
+                'focus_sibling': { background: '#10b981', border: '#34d399' },
+                'spouse_sibling': { background: '#059669', border: '#10b981' },
+                'descendant': { background: '#f59e0b', border: '#fbbf24' }
+            };
+
+            const nodesArray = graphData.nodes.map(n => {
+                const c = colorMap[n.group] || { background: '#64748b', border: '#94a3b8' };
+                return {
+                    id: n.id,
+                    label: n.label,
+                    shape: 'box',
+                    margin: 12,
+                    color: {
+                        background: c.background,
+                        border: c.border,
+                        highlight: { background: c.background, border: '#ffffff' }
+                    },
+                    font: { color: '#ffffff', face: 'Inter', size: 13, bold: true },
+                    borderWidth: 2,
+                    shadow: true
+                };
+            });
+
+            const edgesArray = graphData.edges.map(e => ({
+                from: e.from,
+                to: e.to,
+                label: e.label,
+                font: { color: '#94a3b8', size: 10, align: 'middle', background: '#0f172a' },
+                color: { color: '#334155', highlight: '#3b82f6' },
+                arrows: { to: { enabled: true, scaleFactor: 0.6 } }
+            }));
+
+            const visData = {
+                nodes: new vis.DataSet(nodesArray),
+                edges: new vis.DataSet(edgesArray)
+            };
+
+            const options = {
+                layout: {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD',
+                        sortMethod: 'directed',
+                        nodeSpacing: 160,
+                        levelSeparation: 120
+                    }
+                },
+                physics: { enabled: false },
+                interaction: { hover: true, navigationButtons: true, keyboard: true }
+            };
+
+            if (networkInstance) networkInstance.destroy();
+            networkInstance = new vis.Network(container, visData, options);
+
+            networkInstance.on("click", function(params) {
+                if (params.nodes.length > 0) {
+                    const clickedId = params.nodes[0];
+                    if (clickedId !== activeMemorialId) {
+                        loadFamilyTree(clickedId);
+                    }
+                }
+            });
+        }
+
+        // Initialize from URL parameter or default first memorial
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (paramFocus) {
+                document.getElementById('focusInput').value = paramFocus;
+                loadFamilyTree(paramFocus);
+            } else {
+                // Fetch first available memorial
+                try {
+                    const res = await fetch('/api/memorials?limit=1');
+                    const data = await res.json();
+                    if (data.memorials && data.memorials.length > 0) {
+                        const firstId = data.memorials[0].id;
+                        document.getElementById('focusInput').value = firstId;
+                        loadFamilyTree(firstId);
+                    }
+                } catch(e) {}
+            }
+        });
+    </script>
+</body>
+</html>

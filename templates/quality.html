@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research & Data Quality Suite - Find a Grave Tools</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* Tabs styling */
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.95rem;
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            color: #fff;
+            background: var(--accent-blue);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* Severity Badges */
+        .badge-severity-high { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.4); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem; }
+        .badge-severity-medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem; }
+        .badge-severity-info { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.4); padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem; }
+
+        /* Highlight mark tag for search */
+        mark {
+            background-color: rgba(245, 158, 11, 0.35);
+            color: #fbbf24;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        .preset-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .preset-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            background: rgba(59, 130, 246, 0.15);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Top Navigation Bar -->
+        <nav class="main-navbar" style="display: flex; align-items: center; justify-content: space-between; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.75rem 1.5rem; box-shadow: var(--shadow);">
+            <div class="nav-brand">
+                <a href="/" style="text-decoration: none; color: var(--text-primary); font-weight: 700; font-size: 1.15rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>🪦 Find a Grave Tools</span>
+                    <span style="font-size: 0.7rem; background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.3);">v2.5</span>
+                </a>
+            </div>
+            <div class="nav-links" style="display: flex; align-items: center; gap: 0.5rem; background: rgba(15, 23, 42, 0.5); padding: 0.35rem; border-radius: 10px; border: 1px solid var(--border-color);">
+                <a href="/" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📊 Dashboard</a>
+                <a href="/tree" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🌳 Family Tree</a>
+                <a href="/map" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🗺️ GIS Cemetery Map</a>
+                <a href="/analytics" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📈 Analytics</a>
+                <a href="/quality" style="text-decoration: none; color: #fff; background: var(--accent-blue); font-weight: 600; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🔍 Data Quality</a>
+            </div>
+            <div>
+                <button class="btn" onclick="refreshActiveTab()">🔄 Refresh Audit</button>
+            </div>
+        </nav>
+
+        <!-- Cemetery Filter Toolbar -->
+        <div class="toolbar-card" style="background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.85rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <label for="qualityCemSelect" style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">📍 Filter Cemetery:</label>
+                <select id="qualityCemSelect" style="background-color: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.45rem 0.8rem; border-radius: 8px; font-size: 0.9rem; min-width: 280px;">
+                    <option value="all">📍 All Cemeteries (Combined Audit)</option>
+                </select>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary);" id="qualityScopeText">
+                Auditing all stashed records
+            </div>
+        </div>
+
+        <!-- Tab Buttons -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('anomaliesTab')">⚠️ Genealogical Anomaly Detector</button>
+            <button class="tab-btn" onclick="switchTab('searchTab')">🔍 Full-Text Bio & Inscription Search</button>
+            <button class="tab-btn" onclick="switchTab('syncTab')">🔄 Stash Sync & Change Tracker</button>
+        </div>
+
+        <!-- TAB 1: Genealogical Anomaly Detector -->
+        <div id="anomaliesTab" class="tab-content active">
+            <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                    <div style="font-size: 1.8rem; background: rgba(239, 68, 68, 0.15); color: #ef4444; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">⚠️</div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">High Severity Errors</h4>
+                        <p id="statHighErrors" style="margin: 0.2rem 0 0 0; font-size: 1.4rem; font-weight: 700; color: #ef4444;">-</p>
+                    </div>
+                </div>
+                <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                    <div style="font-size: 1.8rem; background: rgba(245, 158, 11, 0.15); color: #f59e0b; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">👥</div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">Potential Duplicates</h4>
+                        <p id="statDupes" style="margin: 0.2rem 0 0 0; font-size: 1.4rem; font-weight: 700; color: #f59e0b;">-</p>
+                    </div>
+                </div>
+                <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                    <div style="font-size: 1.8rem; background: rgba(59, 130, 246, 0.15); color: #3b82f6; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">🕸️</div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">Unlinked Persons</h4>
+                        <p id="statUnlinked" style="margin: 0.2rem 0 0 0; font-size: 1.4rem; font-weight: 700; color: #3b82f6;">-</p>
+                    </div>
+                </div>
+                <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                    <div style="font-size: 1.8rem; background: rgba(139, 92, 246, 0.15); color: #8b5cf6; width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">📋</div>
+                    <div>
+                        <h4 style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">Total Issues Flagged</h4>
+                        <p id="statTotalIssues" style="margin: 0.2rem 0 0 0; font-size: 1.4rem; font-weight: 700;">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anomaly Filter Pills -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; background: var(--card-bg); padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Filter Category:</span>
+                <button class="preset-btn" onclick="filterAnomalies('ALL')">All Issues</button>
+                <button class="preset-btn" onclick="filterAnomalies('High')">🚨 High Severity Only</button>
+                <button class="preset-btn" onclick="filterAnomalies('Chronological Error')">⏳ Chronological Errors</button>
+                <button class="preset-btn" onclick="filterAnomalies('Parent/Child Discrepancy')">👶 Parent/Child Issues</button>
+                <button class="preset-btn" onclick="filterAnomalies('Potential Duplicate')">👥 Potential Duplicates</button>
+                <button class="preset-btn" onclick="filterAnomalies('Unlinked Person')">🕸️ Unlinked Persons</button>
+            </div>
+
+            <!-- Anomalies List Table -->
+            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="background: rgba(15, 23, 42, 0.8); border-bottom: 1px solid var(--border-color); color: var(--text-secondary);">
+                            <th style="padding: 0.75rem 1rem;">Severity</th>
+                            <th style="padding: 0.75rem 1rem;">Category</th>
+                            <th style="padding: 0.75rem 1rem;">Memorial Focus</th>
+                            <th style="padding: 0.75rem 1rem;">Cemetery</th>
+                            <th style="padding: 0.75rem 1rem;">Description & Details</th>
+                            <th style="padding: 0.75rem 1rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="anomaliesTableBody">
+                        <tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-secondary);">Loading quality audit scan...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 2: Full-Text Bio & Inscription Search -->
+        <div id="searchTab" class="tab-content">
+            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+                <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-primary);">🔍 Search Headstone Inscriptions & Biography Notes</h3>
+                
+                <div style="display: flex; gap: 0.75rem;">
+                    <input type="text" id="bioSearchInput" placeholder="Enter keywords (e.g. '104th Infantry', 'Masons', 'pneumonia', 'Revolutionary War')..." style="flex: 1; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.65rem 1rem; border-radius: 8px; font-size: 0.95rem;">
+                    <button class="btn btn-green" onclick="executeBioSearch()" style="padding: 0 1.5rem;">🔍 Search Text</button>
+                </div>
+
+                <!-- Search Presets -->
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Quick Presets:</span>
+                    <button class="preset-btn" onclick="applyPreset('Infantry')">🎖️ Military Infantry</button>
+                    <button class="preset-btn" onclick="applyPreset('Masons')">🏛️ Masons / Masonic</button>
+                    <button class="preset-btn" onclick="applyPreset('WWII')">🎖️ WWII Veterans</button>
+                    <button class="preset-btn" onclick="applyPreset('Beloved')">📜 Inscription "Beloved"</button>
+                    <button class="preset-btn" onclick="applyPreset('DAR')">🏛️ Daughters of American Revolution</button>
+                </div>
+            </div>
+
+            <!-- Search Results Container -->
+            <div id="searchResultsContainer" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 2rem; text-align: center; color: var(--text-secondary);">
+                    Type a query or select a quick preset to search across stashed biographies and headstone inscriptions.
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Stash Sync & Change Tracker -->
+        <div id="syncTab" class="tab-content">
+            <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
+                <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-primary);">🔄 Stash Sync & Metadata Completeness Health</h3>
+                <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">Scans local SQLite database for missing fields and provides recommendations for incremental scraping refreshes.</p>
+
+                <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem;">
+                        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.8rem; color: var(--text-secondary);">Stash Status</h4>
+                        <p id="syncHealth" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--accent-green);">-</p>
+                    </div>
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem;">
+                        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.8rem; color: var(--text-secondary);">Missing Bio Notes</h4>
+                        <p id="syncMissingBios" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--accent-amber);">-</p>
+                    </div>
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem;">
+                        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.8rem; color: var(--text-secondary);">Missing Inscriptions</h4>
+                        <p id="syncMissingInsc" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--accent-blue);">-</p>
+                    </div>
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem;">
+                        <h4 style="margin: 0 0 0.25rem 0; font-size: 0.8rem; color: var(--text-secondary);">Missing GPS Coordinates</h4>
+                        <p id="syncMissingGPS" style="margin: 0; font-size: 1.2rem; font-weight: 700; color: var(--accent-purple);">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let auditData = null;
+        let activeTabId = 'anomaliesTab';
+
+        async function loadCemeteriesDropdown() {
+            try {
+                const res = await fetch('/api/cemeteries');
+                const rawData = await res.json();
+                const list = Array.isArray(rawData) ? rawData : (rawData.cemeteries || []);
+                const sel = document.getElementById('qualityCemSelect');
+
+                list.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = `🏛️ ${c.name || c.id} (${c.burial_count || 0} burials)`;
+                    sel.appendChild(opt);
+                });
+            } catch(e) {}
+        }
+
+        function switchTab(tabId) {
+            activeTabId = tabId;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+
+            if (tabId === 'syncTab') loadSyncData();
+        }
+
+        async function fetchAuditData() {
+            const cemId = document.getElementById('qualityCemSelect').value;
+            const scopeText = document.getElementById('qualityScopeText');
+            if (scopeText) scopeText.textContent = (cemId === 'all') ? 'Auditing all stashed records' : `Scoped to Cemetery #${cemId}`;
+
+            try {
+                const res = await fetch(`/api/quality/audit?cemetery_id=${cemId}`);
+                auditData = await res.json();
+
+                // Update summary stats
+                document.getElementById('statHighErrors').textContent = auditData.severity_counts['High'] || 0;
+                document.getElementById('statDupes').textContent = auditData.category_counts['Potential Duplicate'] || 0;
+                document.getElementById('statUnlinked').textContent = auditData.category_counts['Unlinked Person'] || 0;
+                document.getElementById('statTotalIssues').textContent = auditData.total_anomalies || 0;
+
+                renderAnomaliesTable(auditData.anomalies);
+            } catch(e) {
+                alert("Failed to load audit data: " + e.message);
+            }
+        }
+
+        function renderAnomaliesTable(anomalies) {
+            const tbody = document.getElementById('anomaliesTableBody');
+            tbody.innerHTML = '';
+
+            if (!anomalies || anomalies.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 2rem; text-align: center; color: var(--accent-green); font-weight: 600;">✨ No data quality issues or genealogical anomalies detected!</td></tr>';
+                return;
+            }
+
+            anomalies.forEach(a => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--border-color)';
+
+                const sevBadgeClass = `badge-severity-${a.severity.toLowerCase()}`;
+
+                tr.innerHTML = `
+                    <td style="padding: 0.75rem 1rem;"><span class="${sevBadgeClass}">${a.severity}</span></td>
+                    <td style="padding: 0.75rem 1rem; font-weight: 600; color: var(--text-primary);">${a.category}</td>
+                    <td style="padding: 0.75rem 1rem; font-weight: 600; color: var(--accent-blue);">${a.name} (#${a.memorial_id})</td>
+                    <td style="padding: 0.75rem 1rem; color: var(--text-secondary);">${a.cemetery_name}</td>
+                    <td style="padding: 0.75rem 1rem;">
+                        <div style="font-weight: 500; color: var(--text-primary);">${a.description}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;">${a.details}</div>
+                    </td>
+                    <td style="padding: 0.75rem 1rem; white-space: nowrap;">
+                        <div style="display: flex; gap: 0.35rem;">
+                            <a href="/tree?focus=${a.memorial_id}" style="padding: 0.25rem 0.5rem; background: var(--accent-blue); color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🌳 Tree</a>
+                            <a href="/map?focus=${a.memorial_id}" style="padding: 0.25rem 0.5rem; background: var(--accent-purple); color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🗺️ Map</a>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterAnomalies(filterType) {
+            if (!auditData || !auditData.anomalies) return;
+            if (filterType === 'ALL') {
+                renderAnomaliesTable(auditData.anomalies);
+            } else if (filterType === 'High') {
+                renderAnomaliesTable(auditData.anomalies.filter(a => a.severity === 'High'));
+            } else {
+                renderAnomaliesTable(auditData.anomalies.filter(a => a.category === filterType));
+            }
+        }
+
+        async function executeBioSearch() {
+            const query = document.getElementById('bioSearchInput').value.trim();
+            const cemId = document.getElementById('qualityCemSelect').value;
+            const container = document.getElementById('searchResultsContainer');
+
+            if (!query) {
+                container.innerHTML = '<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 2rem; text-align: center; color: var(--text-secondary);">Please enter a search term above.</div>';
+                return;
+            }
+
+            container.innerHTML = '<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 2rem; text-align: center; color: var(--text-secondary);">Searching stashed biographies...</div>';
+
+            try {
+                const res = await fetch(`/api/quality/search?q=${encodeURIComponent(query)}&cemetery_id=${cemId}`);
+                const data = await res.json();
+
+                if (!data.results || data.results.length === 0) {
+                    container.innerHTML = `<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 2rem; text-align: center; color: var(--accent-amber);">No matches found for '${query}'.</div>`;
+                    return;
+                }
+
+                container.innerHTML = '';
+                data.results.forEach(r => {
+                    const card = document.createElement('div');
+                    card.style.cssText = 'background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;';
+                    
+                    const snipHtml = r.snippets.map(s => `<div style="font-size: 0.85rem; color: var(--text-primary); line-height: 1.4;">${s}</div>`).join('');
+                    
+                    card.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h4 style="margin: 0; font-size: 1rem; color: var(--accent-blue);">🪦 ${r.name} (#${r.id}) ${r.veteran ? '🎖️ Veteran' : ''}</h4>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">🏛️ ${r.cemetery_name} (Plot: ${r.plot || 'N/A'})</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${r.birth_date || '?'} — ${r.death_date || '?'}</div>
+                        <div style="background: rgba(15, 23, 42, 0.6); padding: 0.6rem 0.8rem; border-radius: 6px; border: 1px solid var(--border-color);">
+                            ${snipHtml}
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                            <a href="/tree?focus=${r.id}" style="padding: 0.3rem 0.6rem; background: var(--accent-blue); color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🌳 Family Tree</a>
+                            <a href="/map?focus=${r.id}" style="padding: 0.3rem 0.6rem; background: var(--accent-purple); color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">🗺️ GIS Map</a>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch(e) {
+                container.innerHTML = `<div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 2rem; text-align: center; color: var(--accent-red);">Search error: ${e.message}</div>`;
+            }
+        }
+
+        function applyPreset(term) {
+            document.getElementById('bioSearchInput').value = term;
+            executeBioSearch();
+        }
+
+        async function loadSyncData() {
+            const cemId = document.getElementById('qualityCemSelect').value;
+            try {
+                const res = await fetch(`/api/quality/sync?cemetery_id=${cemId}`);
+                const data = await res.json();
+                document.getElementById('syncHealth').textContent = data.sync_health;
+                document.getElementById('syncMissingBios').textContent = data.missing_bios;
+                document.getElementById('syncMissingInsc').textContent = data.missing_inscriptions;
+                document.getElementById('syncMissingGPS').textContent = data.missing_gps;
+            } catch(e) {}
+        }
+
+        function refreshActiveTab() {
+            fetchAuditData();
+            if (activeTabId === 'syncTab') loadSyncData();
+        }
+
+        document.getElementById('qualityCemSelect').addEventListener('change', refreshActiveTab);
+        document.getElementById('bioSearchInput').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') executeBioSearch();
+        });
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadCemeteriesDropdown();
+            fetchAuditData();
+        });
+    </script>
+</body>
+</html>

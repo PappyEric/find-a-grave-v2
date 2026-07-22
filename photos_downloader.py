@@ -47,6 +47,9 @@ def extract_and_download_photos(cemetery_id, memorial_id, html_content):
             if clean_url not in photo_urls and is_target_photo(clean_url):
                 photo_urls.append(clean_url)
                 
+    # Decompose soup tree to release RAM
+    soup.decompose()
+    
     if not photo_urls:
         return []
         
