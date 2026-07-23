@@ -22,11 +22,14 @@ import os  # https://docs.python.org/3/library/os.html
 import glob  # https://docs.python.org/3/library/glob.html
 import re  # https://docs.python.org/3/library/re.html
 import inspect  # https://docs.python.org/3/library/inspect.html
+import time
+import requests
 from urllib.parse import unquote  # https://docs.python.org/3/library/urllib.html
 # Packages.
 from bs4 import BeautifulSoup  # https://www.crummy.com/software/BeautifulSoup/bs4/doc/
 # My modules.
 import toolbox  # https://github.com/doug-foster/find-a-grave-tools
+import database
 
 # --- Globals. ---
 path_to_stash = 'stash/'
@@ -1218,4 +1221,176 @@ def extract_relationships_from_html(html_content, memorial_id):
 	soup.decompose()
 	return relationships
 
-# ------------------------------------------------/
+def parse_and_save_memorial_soup(soup, mem_id, cemetery_id, url):
+	"""
+	Parses a memorial BeautifulSoup object and saves memorial details & relationships to database.
+	"""
+	real_name = soup_find(soup, 'full_name') or f"Memorial #{mem_id}"
+	
+	first_name = soup_find(soup, 'first_name') or ''
+	middle_name = soup_find(soup, 'middle_name') or ''
+	maiden_name = soup_find(soup, 'maiden_name') or ''
+	last_name = soup_find(soup, 'last_name') or ''
+	
+	birth_date = soup_find(soup, 'birth') or ''
+	birth_location = soup_find(soup, 'birth_location') or ''
+	death_date = soup_find(soup, 'death') or ''
+	if death_date:
+		death_date = re.sub(r'[ ][(].*?[)].*', '', death_date)
+	death_location = soup_find(soup, 'death_location') or ''
+
+	plot_txt = soup_find(soup, 'plot') or ''
+	bio_txt = soup_find(soup, 'bio') or ''
+	insc_txt = soup_find(soup, 'inscription') or ''
+	details_txt = soup_find(soup, 'gravesite_details') or ''
+	
+	lat = lat_long('lat', '')
+	lng = lat_long('lng', '')
+	
+	mem_data = {
+		'id': str(mem_id),
+		'cemetery_id': str(cemetery_id),
+		'name': real_name,
+		'surname': last_name,
+		'prefix': '',
+		'first_name': first_name,
+		'middle_name': middle_name,
+		'maiden_name': maiden_name,
+		'last_name': last_name,
+		'suffix': '',
+		'nickname': '',
+		'birth_date': birth_date,
+		'birth_location': birth_location,
+		'death_date': death_date,
+		'death_location': death_location,
+		'veteran': 1 if soup_find(soup, 'veteran') else 0,
+		'cenotaph': 1 if soup_find(soup, 'cenotaph') else 0,
+		'plot': plot_txt,
+		'bio': bio_txt,
+		'gps_lat': lat,
+		'gps_lng': lng,
+		'inscription': insc_txt,
+		'gravesite_details': details_txt,
+		'url': url
+	}
+	
+	database.save_memorial(mem_data)
+
+	rels = parse_relationships(soup, str(mem_id))
+	for rel in rels:
+		database.save_relationship(rel['from_id'], rel['to_id'], rel['type'])
+
+def rescrape_cemetery_by_id(cemetery_id, max_pages=5):
+	"""
+	Targeted scraper for a specific cemetery ID:
+	1. Validates & fetches cemetery index page from Find A Grave.
+	2. Discovers memorial links up to max_pages.
+	3. Fetches HTML for new/modified memorial pages into local stash.
+	4. Parses and upserts memorial records & relationships directly into find_a_grave_v2.db.
+	5. Returns summary statistics dict.
+	"""
+	session = requests.Session()
+	descriptor = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.79 Safari/537.36'
+	session.headers.update({'User-Agent': descriptor})
+	session.cookies.set("name", "notice_preferences", domain=cookie_domain)
+	session.cookies.set("value", "2:", domain=cookie_domain)
+
+	cem_url = f"https://www.findagrave.com/cemetery/{cemetery_id}"
+	try:
+		req = session.get(cem_url, timeout=15)
+		if req.status_code != 200:
+			return {'error': f"Failed to fetch cemetery page (HTTP {req.status_code})."}
+	except Exception as e:
+		return {'error': f"Connection error: {str(e)}"}
+
+	soup = BeautifulSoup(req.text, 'html.parser')
+	cem_name_raw = soup_find(soup, 'cemetery_name') or f"cemetery-{cemetery_id}"
+	cem_name_clean = cem_name_raw.strip().lower().replace(' ', '-')
+	cem_folder_name = f"{cemetery_id}_{cem_name_clean}"
+	cem_dir = os.path.join(path_to_stash, cem_folder_name)
+	burial_dir = os.path.join(cem_dir, f"{cemetery_id}_burials")
+	os.makedirs(burial_dir, exist_ok=True)
+
+	database.add_cemetery(
+		cemetery_id=str(cemetery_id),
+		nickname=str(cemetery_id),
+		name=cem_name_raw.strip(),
+		location=None
+	)
+
+	discovered_urls = []
+	page = 1
+	while page <= max_pages:
+		search_url = f"https://www.findagrave.com/cemetery/{cemetery_id}/memorial-search?page={page}"
+		try:
+			p_req = session.get(search_url, timeout=15)
+			if p_req.status_code != 200:
+				break
+		except Exception:
+			break
+
+		p_soup = BeautifulSoup(p_req.content, 'html.parser')
+		warnings = soup_find(p_soup, 'warnings') or []
+		no_matches = False
+		for w in warnings:
+			if hasattr(w, 'parent') and w.parent and 'no matches found' in w.parent.text.lower():
+				no_matches = True
+				break
+		if no_matches:
+			break
+
+		mems = soup_find(p_soup, 'memorials') or []
+		page_urls = []
+		for m in mems:
+			if hasattr(m, 'find_all') and m.find_all('a'):
+				href = m.a['href']
+				full_url = "https://www.findagrave.com" + href
+				page_urls.append(full_url)
+
+		if not page_urls:
+			break
+
+		discovered_urls.extend(page_urls)
+		page += 1
+		time.sleep(0.4)
+
+	discovered_urls = list(dict.fromkeys(discovered_urls))
+
+	added_count = 0
+	updated_count = 0
+
+	for mem_url in discovered_urls:
+		mem_id_match = re.search(r'/memorial/(\d+)', mem_url)
+		if not mem_id_match:
+			continue
+
+		mem_id = mem_id_match.group(1)
+		html_file = os.path.join(burial_dir, f"{cemetery_id}_{mem_id}.html")
+
+		existing = database.get_memorial_details(mem_id)
+
+		try:
+			m_req = session.get(mem_url, timeout=15)
+			if m_req.status_code == 200:
+				with open(html_file, 'w', encoding='utf-8') as f:
+					f.write(m_req.text)
+
+				m_soup = BeautifulSoup(m_req.text, 'html.parser')
+				parse_and_save_memorial_soup(m_soup, mem_id, str(cemetery_id), mem_url)
+
+				if existing:
+					updated_count += 1
+				else:
+					added_count += 1
+
+				time.sleep(0.3)
+		except Exception:
+			continue
+
+	return {
+		'cemetery_id': str(cemetery_id),
+		'cemetery_name': cem_name_raw.strip(),
+		'scanned': len(discovered_urls),
+		'added': added_count,
+		'updated': updated_count
+	}

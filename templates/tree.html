@@ -322,30 +322,112 @@
             const container = document.getElementById('treeCanvas');
             
             const colorMap = {
-                'focus': { background: '#3b82f6', border: '#60a5fa' },
-                'spouse': { background: '#ec4899', border: '#f472b6' },
-                'ancestor': { background: '#8b5cf6', border: '#a78bfa' },
-                'spouse_ancestor': { background: '#a855f7', border: '#c084fc' },
-                'focus_sibling': { background: '#10b981', border: '#34d399' },
-                'spouse_sibling': { background: '#059669', border: '#10b981' },
-                'descendant': { background: '#f59e0b', border: '#fbbf24' }
+                'focus': { background: '#3b82f6', border: '#1d4ed8', highlight: { background: '#60a5fa', border: '#1d4ed8' } },
+                'spouse': { background: '#ec4899', border: '#be185d', highlight: { background: '#f472b6', border: '#be185d' } },
+                'ancestor': { background: '#8b5cf6', border: '#6d28d9', highlight: { background: '#a78bfa', border: '#6d28d9' } },
+                'spouse_ancestor': { background: '#a855f7', border: '#7e22ce', highlight: { background: '#c084fc', border: '#7e22ce' } },
+                'focus_sibling': { background: '#10b981', border: '#047857', highlight: { background: '#34d399', border: '#047857' } },
+                'spouse_sibling': { background: '#059669', border: '#065f46', highlight: { background: '#10b981', border: '#065f46' } },
+                'sibling': { background: '#10b981', border: '#047857', highlight: { background: '#34d399', border: '#047857' } },
+                'descendant': { background: '#f59e0b', border: '#b45309', highlight: { background: '#fbbf24', border: '#b45309' } }
             };
+
+            // Group nodes by level to position horizontally
+            const nodesByLevel = {};
+            graphData.nodes.forEach(node => {
+                const lvl = node.level || 0;
+                if (!nodesByLevel[lvl]) nodesByLevel[lvl] = [];
+                nodesByLevel[lvl].push(node);
+            });
+
+            const nodePositions = {};
+            const levelYSpacing = 160;
+
+            Object.keys(nodesByLevel).forEach(lvlStr => {
+                const lvl = parseInt(lvlStr);
+                const levelNodes = nodesByLevel[lvl];
+                const yPos = lvl * levelYSpacing;
+
+                if (lvl === 0) {
+                    const focusNodes = levelNodes.filter(n => n.group === 'focus');
+                    const spouseNodes = levelNodes.filter(n => n.group === 'spouse');
+                    const focusSiblings = levelNodes.filter(n => n.group === 'focus_sibling' || (n.group === 'sibling' && !spouseNodes.some(s => s.id === n.id)));
+                    const spouseSiblings = levelNodes.filter(n => n.group === 'spouse_sibling');
+                    const otherLevel0 = levelNodes.filter(n => !focusNodes.includes(n) && !spouseNodes.includes(n) && !focusSiblings.includes(n) && !spouseSiblings.includes(n));
+
+                    // Focus placed at -80 (center-left)
+                    if (focusNodes.length > 0) {
+                        nodePositions[focusNodes[0].id] = { x: -80, y: yPos };
+                    }
+
+                    // Spouse(s) placed right next to Focus at +80, +250...
+                    spouseNodes.forEach((sp, idx) => {
+                        nodePositions[sp.id] = { x: 80 + (idx * 170), y: yPos };
+                    });
+
+                    // Focus siblings placed off to the left of Focus (-250, -420...)
+                    focusSiblings.forEach((sib, idx) => {
+                        nodePositions[sib.id] = { x: -250 - (idx * 170), y: yPos };
+                    });
+
+                    // Spouse siblings placed off to the right of Spouse (+250, +420...)
+                    const spouseRightBoundary = 80 + (Math.max(1, spouseNodes.length) - 1) * 170 + 170;
+                    spouseSiblings.forEach((sib, idx) => {
+                        nodePositions[sib.id] = { x: spouseRightBoundary + (idx * 170), y: yPos };
+                    });
+
+                    otherLevel0.forEach((n, idx) => {
+                        nodePositions[n.id] = { x: -250 - ((focusSiblings.length + idx) * 170), y: yPos };
+                    });
+
+                } else if (lvl < 0) {
+                    // Ancestors (above)
+                    const focusAncestors = levelNodes.filter(n => n.group === 'ancestor' || n.group === 'focus');
+                    const spouseAncestors = levelNodes.filter(n => n.group === 'spouse_ancestor');
+                    const otherAncestors = levelNodes.filter(n => !focusAncestors.includes(n) && !spouseAncestors.includes(n));
+
+                    focusAncestors.forEach((anc, idx) => {
+                        const startX = -160 - ((focusAncestors.length - 1) * 85);
+                        nodePositions[anc.id] = { x: startX + (idx * 170), y: yPos };
+                    });
+
+                    spouseAncestors.forEach((anc, idx) => {
+                        const startX = 160 - ((spouseAncestors.length - 1) * 85);
+                        nodePositions[anc.id] = { x: startX + (idx * 170), y: yPos };
+                    });
+
+                    otherAncestors.forEach((anc, idx) => {
+                        nodePositions[anc.id] = { x: (idx * 170), y: yPos };
+                    });
+
+                } else {
+                    // Descendants (below)
+                    const totalWidth = (levelNodes.length - 1) * 170;
+                    const startX = -totalWidth / 2;
+                    levelNodes.forEach((desc, idx) => {
+                        nodePositions[desc.id] = { x: startX + (idx * 170), y: yPos };
+                    });
+                }
+            });
 
             const nodesArray = graphData.nodes.map(n => {
                 const c = colorMap[n.group] || { background: '#64748b', border: '#94a3b8' };
+                const pos = nodePositions[n.id] || { x: 0, y: (n.level || 0) * 160 };
                 return {
                     id: n.id,
                     label: n.label,
+                    x: pos.x,
+                    y: pos.y,
                     shape: 'box',
                     margin: 12,
                     color: {
                         background: c.background,
                         border: c.border,
-                        highlight: { background: c.background, border: '#ffffff' }
+                        highlight: c.highlight
                     },
-                    font: { color: '#ffffff', face: 'Inter', size: 13, bold: true },
-                    borderWidth: 2,
-                    shadow: true
+                    font: { color: '#ffffff', face: 'Inter', size: 13, bold: n.group === 'focus' },
+                    borderWidth: n.group === 'focus' ? 3 : 1.5,
+                    shadow: { enabled: true, color: 'rgba(0,0,0,0.5)', size: 4, x: 2, y: 2 }
                 };
             });
 
@@ -353,9 +435,14 @@
                 from: e.from,
                 to: e.to,
                 label: e.label,
-                font: { color: '#94a3b8', size: 10, align: 'middle', background: '#0f172a' },
-                color: { color: '#334155', highlight: '#3b82f6' },
-                arrows: { to: { enabled: true, scaleFactor: 0.6 } }
+                font: { color: '#94a3b8', size: 10, align: 'top', background: '#0f172a' },
+                color: { color: '#475569', highlight: '#3b82f6' },
+                arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+                smooth: {
+                    type: 'cubicBezier',
+                    forceDirection: 'vertical',
+                    roundness: 0.4
+                }
             }));
 
             const visData = {
@@ -364,17 +451,9 @@
             };
 
             const options = {
-                layout: {
-                    hierarchical: {
-                        enabled: true,
-                        direction: 'UD',
-                        sortMethod: 'directed',
-                        nodeSpacing: 160,
-                        levelSeparation: 120
-                    }
-                },
+                layout: { hierarchical: { enabled: false } },
                 physics: { enabled: false },
-                interaction: { hover: true, navigationButtons: true, keyboard: true }
+                interaction: { hover: true, tooltipDelay: 100, navigationButtons: true, keyboard: true }
             };
 
             if (networkInstance) networkInstance.destroy();

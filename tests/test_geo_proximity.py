@@ -45,12 +45,12 @@ class TestGeoProximity(unittest.TestCase):
         conn.close()
 
         if row:
-            focus_id = str(row['id'])
+            focus_id = str(row[0])
             res = geo_utils.find_nearby_burials(focus_id, radius_feet=10000.0)
             self.assertNotIn('error', res)
             self.assertIn('focus_memorial', res)
             self.assertIn('nearby_burials', res)
-            self.assertEqual(res['focus_memorial']['id'], focus_id)
+            self.assertEqual(str(res['focus_memorial']['id']), focus_id)
 
     def test_api_map_burials_endpoint(self):
         res = self.client.get('/api/map/burials')
@@ -67,12 +67,28 @@ class TestGeoProximity(unittest.TestCase):
         conn.close()
 
         if row:
-            focus_id = str(row['id'])
+            focus_id = str(row[0])
             res = self.client.get(f'/api/memorials/{focus_id}/proximity?radius_feet=500')
             self.assertEqual(res.status_code, 200)
             data = res.get_json()
             self.assertIn('focus_memorial', data)
             self.assertIn('nearby_burials', data)
+
+    def test_api_kinship_map_endpoint(self):
+        conn = database.get_db_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM memorials LIMIT 1;")
+        row = cur.fetchone()
+        conn.close()
+
+        if row:
+            focus_id = str(row[0])
+            res = self.client.get(f'/api/map/kinship?focus_id={focus_id}&generations=2')
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertIn('focus_memorial', data)
+            self.assertIn('relatives', data)
+            self.assertIn('total_mapped', data)
 
 if __name__ == '__main__':
     unittest.main()

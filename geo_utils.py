@@ -149,3 +149,162 @@ def find_nearby_burials(focus_memorial_id, radius_feet=100.0, cemetery_id=None, 
     finally:
         if close_conn:
             conn.close()
+
+def get_kinship_map_data(focus_id, max_generations=3, conn=None):
+    """
+    Crawls BFS family relationships up to max_generations from focus_id,
+    extracting stashed GPS coordinates and categorizing relatives by kinship role.
+    Also returns explicit edge flowline connections between relatives.
+    """
+    close_conn = False
+    if conn is None:
+        conn = database.get_db_conn()
+        close_conn = True
+
+    try:
+        focus_mem = database.get_memorial_details(str(focus_id))
+        if not focus_mem:
+            return {'error': f"Focus memorial ID {focus_id} not found."}
+
+        cursor = conn.cursor()
+        
+        visited = {str(focus_id): {'role': 'focus', 'role_label': 'Focus Person', 'depth': 0}}
+        queue = [(str(focus_id), 0)]
+        connections = []
+
+        while queue:
+            curr_id, depth = queue.pop(0)
+            if depth >= max_generations:
+                continue
+
+            # Forward relationships
+            cursor.execute("""
+                SELECT to_memorial_id, relationship_type 
+                FROM relationships 
+                WHERE from_memorial_id = ?
+            """, (curr_id,))
+            rel_rows = cursor.fetchall()
+
+            for r in rel_rows:
+                t_id = str(r['to_memorial_id'])
+                r_type = (r['relationship_type'] or '').lower()
+
+                role = 'relative'
+                role_label = r['relationship_type'].capitalize() if r['relationship_type'] else 'Relative'
+
+                if r_type in ['father', 'mother', 'parent']:
+                    role = 'parent'
+                elif r_type in ['son', 'daughter', 'child']:
+                    role = 'child'
+                elif r_type in ['spouse', 'husband', 'wife']:
+                    role = 'spouse'
+                elif r_type in ['brother', 'sister', 'sibling', 'half-brother', 'half-sister']:
+                    role = 'sibling'
+
+                connections.append({'from_id': curr_id, 'to_id': t_id, 'relationship': r_type})
+
+                if t_id not in visited:
+                    visited[t_id] = {
+                        'role': role,
+                        'role_label': role_label,
+                        'depth': depth + 1
+                    }
+                    queue.append((t_id, depth + 1))
+
+            # Reverse relationships
+            cursor.execute("""
+                SELECT from_memorial_id, relationship_type 
+                FROM relationships 
+                WHERE to_memorial_id = ?
+            """, (curr_id,))
+            rev_rows = cursor.fetchall()
+
+            for r in rev_rows:
+                f_id = str(r['from_memorial_id'])
+                r_type = (r['relationship_type'] or '').lower()
+
+                role = 'relative'
+                if r_type in ['father', 'mother', 'parent']:
+                    role = 'child'
+                    role_label = 'Child'
+                elif r_type in ['son', 'daughter', 'child']:
+                    role = 'parent'
+                    role_label = 'Parent'
+                elif r_type in ['spouse', 'husband', 'wife']:
+                    role = 'spouse'
+                    role_label = 'Spouse'
+                elif r_type in ['brother', 'sister', 'sibling', 'half-brother', 'half-sister']:
+                    role = 'sibling'
+                    role_label = 'Sibling'
+
+                connections.append({'from_id': f_id, 'to_id': curr_id, 'relationship': r_type})
+
+                if f_id not in visited:
+                    visited[f_id] = {
+                        'role': role,
+                        'role_label': role_label,
+                        'depth': depth + 1
+                    }
+                    queue.append((f_id, depth + 1))
+
+        # Fetch details and GPS coordinates for all visited relatives
+        placeholders = ','.join(['?'] * len(visited))
+        cursor.execute(f"""
+            SELECT m.id, m.name, m.first_name, m.last_name, m.surname, m.maiden_name,
+                   m.birth_date, m.death_date, m.plot, m.gps_lat, m.gps_lng,
+                   c.id as cemetery_id, c.name as cemetery_name
+            FROM memorials m
+            LEFT JOIN cemeteries c ON m.cemetery_id = c.id
+            WHERE m.id IN ({placeholders})
+        """, list(visited.keys()))
+        
+        m_rows = cursor.fetchall()
+        
+        relatives = []
+        f_lat = focus_mem.get('gps_lat')
+        f_lng = focus_mem.get('gps_lng')
+
+        for row in m_rows:
+            m_id = str(row['id'])
+            meta = visited.get(m_id, {})
+            r_lat = row['gps_lat']
+            r_lng = row['gps_lng']
+
+            dist_ft = None
+            if f_lat is not None and f_lng is not None and r_lat is not None and r_lng is not None:
+                dist_ft = haversine_feet(f_lat, f_lng, r_lat, r_lng)
+
+            relatives.append({
+                'id': m_id,
+                'name': row['name'] or f"Memorial #{m_id}",
+                'birth_date': row['birth_date'],
+                'death_date': row['death_date'],
+                'plot': row['plot'],
+                'gps_lat': r_lat,
+                'gps_lng': r_lng,
+                'cemetery_id': row['cemetery_id'],
+                'cemetery_name': row['cemetery_name'] or 'Unknown',
+                'role': meta.get('role', 'relative'),
+                'role_label': meta.get('role_label', 'Relative'),
+                'depth': meta.get('depth', 0),
+                'distance_feet': dist_ft,
+                'distance_miles': round(dist_ft / 5280.0, 2) if dist_ft is not None else None,
+                'has_gps': (r_lat is not None and r_lng is not None)
+            })
+
+        return {
+            'focus_memorial': {
+                'id': focus_mem['id'],
+                'name': focus_mem['name'],
+                'gps_lat': f_lat,
+                'gps_lng': f_lng,
+                'cemetery_name': focus_mem.get('cemetery_name')
+            },
+            'max_generations': max_generations,
+            'relatives': relatives,
+            'connections': connections,
+            'total_mapped': len([r for r in relatives if r['has_gps']])
+        }
+    finally:
+        if close_conn:
+            conn.close()

@@ -844,6 +844,18 @@ def export_cemetery_gedcom(cemetery_id):
     except Exception as e:
         return jsonify({'error': f"GEDCOM export failed: {str(e)}"}), 500
 
+@app.route('/api/cemeteries/<cemetery_id>/rescrape', methods=['POST'])
+def api_rescrape_cemetery(cemetery_id):
+    try:
+        data = request.get_json(silent=True) or {}
+        max_pages = int(data.get('max_pages', 3))
+        result = grave_digger.rescrape_cemetery_by_id(cemetery_id, max_pages=max_pages)
+        if 'error' in result:
+            return jsonify(result), 400
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': f"Failed to re-sync cemetery {cemetery_id}: {str(e)}"}), 500
+
 @app.route('/api/map/cemeteries', methods=['GET'])
 def api_get_map_cemeteries():
     try:
@@ -851,6 +863,20 @@ def api_get_map_cemeteries():
         return jsonify({'cemeteries': cemeteries, 'count': len(cemeteries)})
     except Exception as e:
         return jsonify({'error': f"Failed to fetch map cemeteries: {str(e)}"}), 500
+
+@app.route('/api/map/kinship', methods=['GET'])
+def api_get_map_kinship():
+    try:
+        focus_id = request.args.get('focus_id')
+        generations = int(request.args.get('generations', 3))
+        if not focus_id:
+            return jsonify({'error': 'Missing focus_id parameter'}), 400
+        result = geo_utils.get_kinship_map_data(focus_id=focus_id, max_generations=generations)
+        if 'error' in result:
+            return jsonify(result), 404
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': f"Failed to compute kinship map: {str(e)}"}), 500
 
 @app.route('/api/map/burials', methods=['GET'])
 def api_get_map_burials():

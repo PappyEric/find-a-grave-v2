@@ -38,6 +38,7 @@ The workstation is served locally at `http://127.0.0.1:5050` with top-level head
 * **Tier 2 — Memorial Plot Markers**: Plot individual grave plots with latitude/longitude coordinates on satellite imagery.
 * **Surname Cluster Search**: Highlight family grave clusters sharing the same surname in gold/amber.
 * **$N$-Feet Geodesic Proximity Finder**: Specify a focus grave and distance radius (in feet) to draw a translucent circle on the map, identifying neighboring family plots or unmarked graves.
+* **👨‍👩‍👧 Geographic Kinship Network Mapping**: Select any focus individual (`/map?kinship=MEM_ID`) to project their entire family network onto the satellite map. Relatives are color-coded by kinship role (⭐ Focus Person in Gold, 💙 Parents in Blue, 🩷 Spouses in Pink, 💚 Children in Green, 💜 Siblings in Purple) with dashed geodesic flowlines connecting relative burial sites across cemeteries.
 
 ### 4. 📈 Demographics & Analytics Insights (`/analytics`)
 * **Summary Cards**: Total Burials, Cemeteries, Average Lifespan, Veteran %, and Family Connections.
