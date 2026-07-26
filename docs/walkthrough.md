@@ -39,7 +39,7 @@ When you open the application, you arrive at the **Cemetery & Memorial Dashboard
 Find your target cemetery on Find a Grave and copy its numeric ID from the website address (URL). Type the ID into the **Cemetery ID (numeric)** box under **Cemeteries Configuration**.
 
 ![Entering Cemetery ID](images/02_entering_cemetery_id.png)
-*(Example: Entering cemetery ID `77797` highlighted in red).*
+_(Example: Entering cemetery ID `77797` highlighted in red)._
 
 ---
 
@@ -48,7 +48,7 @@ Find your target cemetery on Find a Grave and copy its numeric ID from the websi
 Click **+ Add Cemetery**. The cemetery will appear in your configuration list with its location, GPS coordinates, and options to fetch location data or scrape records.
 
 ![Cemetery Added and GPS Info](images/03_cemetery_added_and_gps.png)
-*(Example: "Blue Sulphur Burial Park (77797)" auto-populated with coordinates `38.41720, -82.24220`).*
+_(Example: "Blue Sulphur Burial Park (77797)" auto-populated with coordinates `38.41720, -82.24220`)._
 
 ---
 
@@ -79,6 +79,7 @@ Once all the initial memorials are scraped, it will then cycle back to start pro
 You will see some "Validating" status cemeteries listed on the left side bar. The initial scan will pull in the cemetery IDs but not the cemetery details. These details will need to be added using the **Fetch Missing Cemetery Details** button. This button will pull in the cemetery name, address, and GPS coordinates for all cemeteries that are missing this information. It will cycle through all the "Validating" cemeteries and pull in the cemetery details.
 
 ![Validating Cemeteries Status and Fetching Locations](images/07_validating_cemeteries_and_fetch_gps.png)
+_(Notice that in this example the cemetery had 502 memorials; after scraping through those and adding in relatives, we have doubled our memorials and added over 200 cemeteries where relatives have been found - there would have been more but I stopped the scraper to save me time making this walkthrough)._
 
 Once completed you will see a list of "Active" cemeteries ready to use. You can now use the **Scrape** function to scrape the memorials for the selected cemetery or cemeteries. The **Scrape** in the cemetery listing will only scrape through relatives stashed from the initial scrape. If you want to also **fully** scrape through the new cemeteries to get all the memorials and all the relatives in that cemetery you will need to use the **⚡ Start Scrape** button in the Job Manager section and select the new cemeteries and the relationship groups you want to scrape through. This process will continue until all selected relationship groups are processed for all memorials.
 
@@ -122,3 +123,19 @@ Once completed you will see a list of "Active" cemeteries ready to use. You can 
 
 - Run the **Discrepancy Detector** to spot chronological errors (e.g., child born before parent, death before birth) or potential duplicates.
 - Perform full-text searches across bios and headstone inscriptions with search term highlighting.
+
+---
+
+## 💡 System Overview & Future Roadmap
+
+In general terms, the workstation operates by fetching and parsing Find a Grave pages to populate a local SQLite database. Once you end/close your session, don't worry! The data is saved in your database for later use. When you restart it, it will use the data in the database to rebuild the web application so you can continue where you left off.
+
+While the core functionality is straightforward, the application is actively evolving. Many features require expansion, some deprecated options need removal, and various interfaces are slated for performance and aesthetic enhancements. More visual assets, screenshots, and step-by-step guides will be added soon.
+
+### 📋 Feedback, Feature Wishlists & Bug Reports
+
+Please add issues, comments, or notes to this GitHub repository regarding:
+
+- **Feature Wishlists**: What additional tools or integrations would make your genealogy research easier?
+- **Bug Reports**: Encountered a crawl failure, relationship loop, or database lock? Let us know.
+- **Plain Jankiness**: Spot any awkward UI behaviors, layout/styling quirks, or confusing controls? We want to smooth them out!
