@@ -8,3 +8,4 @@ find-a-grave-tools.code-workspace
 .DS_Store
 photos/*
 *.db
+.venv/
