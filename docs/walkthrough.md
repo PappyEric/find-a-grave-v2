@@ -16,11 +16,53 @@ At the top of your browser window, you will find the main header bar for switchi
 
 ---
 
-## 🚀 Step 1: Launching the Application
+## 🚀 Step 1: Requirements, Setup & Launching the Application
 
-1. Locate the project folder on your computer.
-2. Double-click **`run_gui.py`**.
-3. A terminal window will start the background database server and automatically launch your browser to `http://127.0.0.1:5050`.
+### 1. Install Python (Prerequisite)
+
+Before running the application, make sure Python (version 3.12 to 3.14) is installed on your computer.
+
+- **Download Python**: Download the installer from the official [Python Downloads Page](https://www.python.org/downloads/).
+- ⚠️ **IMPORTANT (Windows)**: During installation, make sure to check the box **"Add python.exe to PATH"** at the bottom of the installer window before clicking Install.
+
+---
+
+### 2. Download the Code from GitHub
+
+- **Option A (ZIP Download — Easiest)**: Click the green **Code** button at the top of the GitHub repository page, select **Download ZIP**, and extract the ZIP file to a folder on your computer.
+- **Option B (Git Clone)**: Open your Command Prompt / Terminal and run:
+  ```bash
+  git clone https://github.com/PappyEric/find-a-grave-v2.git
+  ```
+
+---
+
+### 3. One-Time Setup: Create Virtual Environment & Install Requirements
+
+Running `run_gui.py` requires a local virtual environment (`.venv`) with the project's dependencies installed (`requests`, `beautifulsoup4`, `flask`, `drissionpage`, etc.). 
+
+Open a terminal / Command Prompt inside the project folder and run the following two commands (one-time setup):
+
+1. **Create Virtual Environment**:
+   ```powershell
+   python -m venv .venv
+   ```
+2. **Install Required Packages**:
+   - **Windows**:
+     ```powershell
+     .venv\Scripts\pip install -r requirements.txt
+     ```
+   - **macOS / Linux**:
+     ```bash
+     .venv/bin/pip install -r requirements.txt
+     ```
+
+---
+
+### 4. Launch the Application
+
+1. Double-click **`run_gui.py`** (or run `python run_gui.py` in your terminal inside the project folder).
+2. `run_gui.py` will locate the virtual environment, start the background database & web server, and automatically open your web browser to `http://127.0.0.1:5050`.
 
 ---
 
@@ -28,7 +70,7 @@ At the top of your browser window, you will find the main header bar for switchi
 
 ### 1. Dashboard Overview
 
-When you open the application, you arrive at the **Cemetery & Memorial Dashboard**.
+When you open the application, you arrive at the empty **Cemetery & Memorial Dashboard**.
 
 ![Dashboard Overview](images/01_dashboard_overview.png)
 
@@ -70,16 +112,16 @@ Choose which family relationship groups you want the crawler to collect (such as
 
 ### 6. Monitor Live Progress Logs
 
-Watch the live console log panel at the bottom of the Job Manager. It shows real-time progress as burials are discovered, enqueued, and parsed.
+Watch the live console log panel at the bottom of the Job Manager. It shows real-time progress as burials are discovered, enqueued, and parsed. In this example it found 502 memorials for this cemetery.
 
 ![Scraper Live Console Logs](images/06_scraper_live_console_logs.png)
 
 Once all the initial memorials are scraped, it will then cycle back to start processing the other selected relationship groups (Parents, Spouses, Children, Siblings, Half-Siblings) for each of the initial memorials. Which then also pulls in any new cemeteries for the relatives that are not in the initial cemetery list. This process will continue until all selected relationship groups are processed for all memorials.
 
-You will see some "Validating" status cemeteries listed on the left side bar. The initial scan will pull in the cemetery IDs but not the cemetery details. These details will need to be added using the **Fetch Missing Cemetery Details** button. This button will pull in the cemetery name, address, and GPS coordinates for all cemeteries that are missing this information. It will cycle through all the "Validating" cemeteries and pull in the cemetery details.
+You will see some "Validating" status cemeteries listed on the left side bar. The initial scan will pull in the cemetery IDs but not the cemetery details. (something for me to work on later) These details will need to be added using the **Fetch Missing Cemetery Details** button. This button will pull in the cemetery name, address, and GPS coordinates for all cemeteries that are missing this information. It will cycle through all the "Validating" cemeteries and pull in the cemetery details.
 
 ![Validating Cemeteries Status and Fetching Locations](images/07_validating_cemeteries_and_fetch_gps.png)
-_(Notice that in this example the cemetery had 502 memorials; after scraping through those and adding in relatives, we have doubled our memorials and added over 200 cemeteries where relatives have been found - there would have been more but I stopped the scraper to save me time making this walkthrough)._
+_(Notice that in this example the cemetery had 502 memorials; after scraping through those and adding in relatives, we have doubled our memorials and added over 200 cemeteries where relatives have been found - there would have been more but I stopped the scraper to save me time making this walkthrough!)._
 
 Once completed you will see a list of "Active" cemeteries ready to use. You can now use the **Scrape** function to scrape the memorials for the selected cemetery or cemeteries. The **Scrape** in the cemetery listing will only scrape through relatives stashed from the initial scrape. If you want to also **fully** scrape through the new cemeteries to get all the memorials and all the relatives in that cemetery you will need to use the **⚡ Start Scrape** button in the Job Manager section and select the new cemeteries and the relationship groups you want to scrape through. This process will continue until all selected relationship groups are processed for all memorials.
 
@@ -115,17 +157,17 @@ Once completed you will see a list of "Active" cemeteries ready to use. You can 
 Using the **Kinship Map** feature, selecting a focus individual projects their entire family network onto the map and draws color-coded geodesic flowlines connecting their burial sites across state lines.
 
 ![Geographic Kinship Flowlines Across States](images/11_gis_kinship_state_flowlines.png)
-*(In this example, mapping relatives for **James H. Curry** reveals 4 family grave sites connected by 3 flowlines spanning across West Virginia and Virginia—demonstrating how a single cemetery scrape expands to uncover kin buried across multiple states).*
+_(In this example, mapping relatives for **James H. Curry** reveals 4 family grave sites connected by 3 flowlines spanning across West Virginia and Virginia—demonstrating how a single cemetery scrape expands to uncover kin buried across multiple states)._
 
 #### Inspecting Focus Individual & Relative Markers
 
 Zooming into the grave markers allows you to inspect exact plot details and geodesic distances between family members:
 
 ![Focus Person Marker: James H. Curry](images/12_gis_kinship_focus_curry.png)
-*(Focus person **James H. Curry** [1915–1996] highlighted in gold at Duty Cemetery).*
+_(Focus person **James H. Curry** [1915–1996] highlighted in gold at Duty Cemetery)._
 
 ![Sibling Marker: Allen Cleveland Curry](images/13_gis_kinship_sibling_curry.png)
-*(Sibling **Allen Cleveland Curry** [1923–1962] highlighted in purple, buried nearby in Duty Cemetery just 0.01 miles / 43.32 ft away from James).*
+_(Sibling **Allen Cleveland Curry** [1923–1962] highlighted in purple, buried nearby in Duty Cemetery just 0.01 miles / 43.32 ft away from James)._
 
 ---
 
