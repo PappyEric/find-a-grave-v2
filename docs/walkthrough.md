@@ -110,6 +110,23 @@ Once completed you will see a list of "Active" cemeteries ready to use. You can 
 - Type a surname into **Surname Cluster Search** to highlight family plot clusters in gold.
 - Use **Geographic Kinship Mapping** to draw color-coded flowlines between a focus person and their buried relatives.
 
+### 👨‍👩‍👧 Geographic Kinship Flowlines across States (Example: James H. Curry)
+
+Using the **Kinship Map** feature, selecting a focus individual projects their entire family network onto the map and draws color-coded geodesic flowlines connecting their burial sites across state lines.
+
+![Geographic Kinship Flowlines Across States](images/11_gis_kinship_state_flowlines.png)
+*(In this example, mapping relatives for **James H. Curry** reveals 4 family grave sites connected by 3 flowlines spanning across West Virginia and Virginia—demonstrating how a single cemetery scrape expands to uncover kin buried across multiple states).*
+
+#### Inspecting Focus Individual & Relative Markers
+
+Zooming into the grave markers allows you to inspect exact plot details and geodesic distances between family members:
+
+![Focus Person Marker: James H. Curry](images/12_gis_kinship_focus_curry.png)
+*(Focus person **James H. Curry** [1915–1996] highlighted in gold at Duty Cemetery).*
+
+![Sibling Marker: Allen Cleveland Curry](images/13_gis_kinship_sibling_curry.png)
+*(Sibling **Allen Cleveland Curry** [1923–1962] highlighted in purple, buried nearby in Duty Cemetery just 0.01 miles / 43.32 ft away from James).*
+
 ---
 
 ## 📈 Step 5: Demographics & Analytics (`/analytics`)
