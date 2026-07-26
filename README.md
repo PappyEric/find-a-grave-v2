@@ -3,7 +3,7 @@
 Create a local, offline, media-rich archive of [Find a Grave](https://www.findagrave.com) memorial pages, analyze relationships, map gravesite plots in 2D GIS space, build pedigree family trees, and audit stashed records with advanced research tools.
 
 > [!TIP]
-> For a detailed, step-by-step tour of the workstation, including scraper configuration, family tree features, GIS map controls, and GEDCOM exporting, check out the [walkthrough.md](file:///d:/temp_data/Gemini_Projects/Find_A_Grave/find-a-grave-v2/docs/walkthrough.md).
+> For a detailed, step-by-step tour of the workstation, including scraper configuration, family tree features, GIS map controls, and GEDCOM exporting, check out the [Step-by-Step Walkthrough Guide](docs/walkthrough.md).
 
 ## Last Updated
 
@@ -92,7 +92,7 @@ Every memorial's full name is parsed into 7 distinct columns:
 
 ---
 
-For a comprehensive guide on using the workstation, see the [walkthrough.md](file:///d:/temp_data/Gemini_Projects/Find_A_Grave/find-a-grave-v2/docs/walkthrough.md).
+For a comprehensive guide on using the workstation, see the [Step-by-Step Walkthrough Guide](docs/walkthrough.md).
 
 ## 🚀 Setup & Quick Start
 
