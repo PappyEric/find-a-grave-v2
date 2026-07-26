@@ -39,7 +39,7 @@ Before running the application, make sure Python (version 3.12 to 3.14) is insta
 
 ### 3. One-Time Setup: Create Virtual Environment & Install Requirements
 
-Running `run_gui.py` requires a local virtual environment (`.venv`) with the project's dependencies installed (`requests`, `beautifulsoup4`, `flask`, `drissionpage`, etc.). 
+Running `run_gui.py` requires a local virtual environment (`.venv`) with the project's dependencies installed (`requests`, `beautifulsoup4`, `flask`, `drissionpage`, etc.).
 
 Open a terminal / Command Prompt inside the project folder and run the following two commands (one-time setup):
 
@@ -135,6 +135,7 @@ Once completed you will see a list of "Active" cemeteries ready to use. You can 
 - Use the **Ancestor Generations** and **Descendant Generations** sliders to expand or collapse how many levels of relatives are displayed.
 - Click any box (node) on the screen to instantly refocus the tree on that person.
 - Click **Export Pedigree to GEDCOM** to save a standard family tree file.
+- I took this screenshot before the scrape was finished: ID numbers will be replaced with readable names when the scrape is done.
 
 ---
 
