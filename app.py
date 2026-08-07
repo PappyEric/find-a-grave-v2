@@ -183,7 +183,14 @@ def auto_heal_missing_cemeteries(session, target_cemetery_id=None):
                         except ValueError:
                             pass
                 
-                database.add_cemetery(cem_id, nickname, name_val, location_val, gps_lat, gps_lng)
+                # 4. Parse AKA / Alternate Name
+                _, aka_nickname, _ = database.parse_cemetery_text(req.text)
+                if not aka_nickname:
+                    existing_nick = str(row[1] or '').strip()
+                    if existing_nick and existing_nick != str(cem_id) and existing_nick != name_val:
+                        aka_nickname = existing_nick
+                
+                database.add_cemetery(cem_id, aka_nickname, name_val, location_val, gps_lat, gps_lng)
                 log_gui(f"Auto-populated details for cemetery {cem_id}: {name_val} ({location_val})")
             else:
                 log_gui(f"Error fetching metadata for cemetery {cem_id}: status {req.status_code}")
@@ -1185,7 +1192,8 @@ def discover_county_cemeteries_worker(state, county, location_id=None):
                     county=county,
                     gps_lat=gps_lat,
                     gps_lng=gps_lng,
-                    fag_burial_count=burial_count
+                    fag_burial_count=burial_count,
+                    raw_text=card_text
                 )
                 total_discovered += 1
                 page_new_count += 1
@@ -1246,6 +1254,7 @@ def api_county_list():
 def api_county_add_custom():
     data = request.get_json() or {}
     name = data.get('name', '').strip()
+    nickname = data.get('nickname', '').strip() or data.get('aka', '').strip()
     state = data.get('state', '').strip()
     county = data.get('county', '').strip()
     location = data.get('location', '').strip()
@@ -1263,7 +1272,7 @@ def api_county_add_custom():
     except ValueError:
         gps_lat, gps_lng = None, None
         
-    cid = database.add_custom_cemetery(name, state, county, location, gps_lat, gps_lng, source_doc, notes)
+    cid = database.add_custom_cemetery(name, state, county, location, gps_lat, gps_lng, source_doc, notes, nickname=nickname)
     return jsonify({'success': True, 'id': cid, 'message': 'Custom cemetery created successfully.'})
 
 @app.route('/api/county/link_fag', methods=['POST'])
@@ -1306,7 +1315,7 @@ def api_county_export_csv():
     cw = csv.writer(si)
     
     headers = [
-        'Cemetery ID', 'Name', 'State', 'County', 'Location',
+        'Cemetery ID', 'Name', 'Also Known As (AKA)', 'State', 'County', 'Location',
         'FAG Burial Count', 'Stashed Burial Count', 'GPS Lat', 'GPS Lng',
         'Is Historical/Custom', 'Source Documentation', 'FAG Added Date',
         'Wikidata QID', 'Wikidata Confirmed', 'Wikidata Date',
@@ -1319,6 +1328,7 @@ def api_county_export_csv():
         cw.writerow([
             c.get('id', ''),
             c.get('name', ''),
+            c.get('nickname', ''),
             c.get('state', ''),
             c.get('county', ''),
             c.get('location', ''),
@@ -1351,20 +1361,32 @@ def api_county_export_csv():
         download_name=filename
     )
 
-COUNTY_QIDS = {
-    "cabell county": "Q508535",
-    "cabell": "Q508535",
-    "kanawha county": "Q498704",
-    "kanawha": "Q498704",
-    "wayne county": "Q513220",
-    "wayne": "Q513220",
-    "mason county": "Q495697",
-    "mason": "Q495697",
-    "putnam county": "Q507421",
-    "putnam": "Q507421",
-    "lincoln county": "Q490074",
-    "lincoln": "Q490074",
-}
+def resolve_place_qid(place_name, state="West Virginia"):
+    if not place_name:
+        return None
+    key = place_name.lower().strip()
+    
+    # 1. Check local SQLite cache first (instant lookup)
+    qid = database.get_place_qid(key)
+    if qid:
+        return qid
+        
+    # 2. Dynamic fallback: Query Wikidata API for un-cached places
+    try:
+        import urllib.request, urllib.parse, json
+        search_query = f"{place_name}, {state}" if state else place_name
+        url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(search_query)}&language=en&format=json"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) FindAGraveBot/2.0 (Genealogy Research Tool)'})
+        data = json.loads(urllib.request.urlopen(req, timeout=3.0).read().decode('utf-8'))
+        results = data.get('search', [])
+        if results:
+            found_qid = results[0]['id']
+            database.save_place_qid(key, found_qid)
+            return found_qid
+    except Exception as e:
+        print(f"Wikidata API lookup error for {place_name}: {e}")
+        
+    return None
 
 @app.route('/api/county/quickstatements')
 def api_county_quickstatements():
@@ -1405,31 +1427,54 @@ def api_county_quickstatements():
         if not c.get('is_custom') and c.get('id'):
             lines.append(f'{subject}\tP2025\t"{c["id"]}"')
             
+        # Country: United States of America (P17 -> Q30)
+        lines.append(f'{subject}\tP17\tQ30')
+            
         # Located in administrative territorial entity (P131)
+        added_p131 = set()
+        place_qids_dict = database.get_all_place_qids()
+        
+        # 1. City / Town lookup from location text & cemetery name
+        combined_loc_text = f"{(c.get('location') or '')} {(c.get('name') or '')}".lower()
+        # Sort places by length descending so multi-word names match first
+        for place_name, place_qid in sorted(place_qids_dict.items(), key=lambda x: len(x[0]), reverse=True):
+            if place_name in combined_loc_text and not place_name.endswith('county') and place_name not in ('cabell', 'west virginia'):
+                if place_qid not in added_p131:
+                    lines.append(f'{subject}\tP131\t{place_qid}')
+                    added_p131.add(place_qid)
+
+        # 2. County lookup
         c_county_str = (c.get('county') or county or '').lower().strip()
-        county_qid = COUNTY_QIDS.get(c_county_str)
-        if county_qid:
+        county_qid = place_qids_dict.get(c_county_str) or place_qids_dict.get(f"{c_county_str} county")
+        if not county_qid and c_county_str:
+            county_qid = resolve_place_qid(c_county_str, c.get('state') or state)
+            
+        if county_qid and county_qid not in added_p131:
             lines.append(f'{subject}\tP131\t{county_qid}')
+            added_p131.add(county_qid)
             
         # Coordinate Location (P625)
-        if c.get('gps_lat') is not None and c.get('gps_lng') is not None:
+        if c.get('gps_lat') is not None and c.get('gps_lng') is not None and float(c.get('gps_lat') or 0) != 0:
             lines.append(f'{subject}\tP625\t@{c["gps_lat"]}/{c["gps_lng"]}')
             
         # OpenStreetMap Way ID (P10689) / Relation ID (P402) / Node ID (P11693)
         osm = (c.get('osm_id') or '').strip()
         if osm:
             clean_osm = re.sub(r'^[^\d]+', '', osm)
-            if 'relation' in osm.lower():
-                lines.append(f'{subject}\tP402\t"{clean_osm}"')
-            elif 'node' in osm.lower():
-                lines.append(f'{subject}\tP11693\t"{clean_osm}"')
-            else:
-                lines.append(f'{subject}\tP10689\t"{clean_osm}"')
+            if clean_osm:
+                if 'relation' in osm.lower():
+                    lines.append(f'{subject}\tP402\t"{clean_osm}"')
+                elif 'node' in osm.lower():
+                    lines.append(f'{subject}\tP11693\t"{clean_osm}"')
+                else:
+                    lines.append(f'{subject}\tP10689\t"{clean_osm}"')
                 
         # WikiTree Category ID (P7755)
         wikitree = (c.get('wikitree_id') or '').strip()
         if wikitree:
-            lines.append(f'{subject}\tP7755\t"{wikitree}"')
+            clean_wt = re.sub(r'^(category\s*:\s*)', '', wikitree, flags=re.IGNORECASE).strip()
+            clean_wt = clean_wt.replace(' ', '_')
+            lines.append(f'{subject}\tP7755\t"{clean_wt}"')
             
         lines.append("")
         
@@ -1446,6 +1491,349 @@ def api_county_quickstatements():
         as_attachment=True,
         download_name=filename
     )
+
+@app.route('/api/county/automatch', methods=['POST'])
+def api_county_automatch():
+    import urllib.request
+    import urllib.parse
+    import json
+    data = request.get_json() or {}
+    state = data.get('state', '').strip()
+    county = data.get('county', '').strip()
+    
+    cemeteries = database.get_county_cemeteries(state, county)
+    if not cemeteries:
+        return jsonify({"success": True, "matches": []})
+
+    # 1. Bulk Wikidata Query (P2025)
+    wikidata_map = {}
+    try:
+        county_qid = database.get_place_qid(county) or database.get_place_qid(f"{county.lower()} county")
+        if county_qid:
+            sparql = f"""
+            SELECT ?item ?p2025 WHERE {{
+              ?item wdt:P2025 ?p2025 .
+              ?item wdt:P131 wd:{county_qid} .
+            }}
+            """
+        else:
+            sparql = """
+            SELECT ?item ?p2025 WHERE {
+              ?item wdt:P2025 ?p2025 .
+            }
+            """
+        url = "https://query.wikidata.org/sparql?query=" + urllib.parse.quote(sparql) + "&format=json"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) FindAGraveBot/2.0 (Genealogy Research Tool)'})
+        res_data = json.loads(urllib.request.urlopen(req, timeout=10.0).read().decode('utf-8'))
+        bindings = res_data.get('results', {}).get('bindings', [])
+        for b in bindings:
+            qid = b['item']['value'].split('/')[-1]
+            p2025_val = str(b['p2025']['value']).strip()
+            wikidata_map[p2025_val] = qid
+    except Exception as e:
+        print("Bulk Wikidata Error:", e)
+
+    # 2. Bulk Overpass Query
+    valid_coords = [(float(c['gps_lat']), float(c['gps_lng'])) for c in cemeteries if c.get('gps_lat') and c.get('gps_lng') and float(c['gps_lat']) != 0]
+    osm_tag_map = {}
+    if valid_coords:
+        avg_lat = sum(p[0] for p in valid_coords) / len(valid_coords)
+        avg_lng = sum(p[1] for p in valid_coords) / len(valid_coords)
+
+        overpass_query = f"""[out:json][timeout:25];
+(
+  nwr["amenity"="cemetery"](around:25000, {avg_lat}, {avg_lng});
+  nwr["landuse"="cemetery"](around:25000, {avg_lat}, {avg_lng});
+  nwr["ref:findagrave"](around:25000, {avg_lat}, {avg_lng});
+  nwr["ref:find_a_grave"](around:25000, {avg_lat}, {avg_lng});
+);
+out center tags;"""
+
+        url = "https://overpass-api.de/api/interpreter"
+        data_bytes = f"data={urllib.parse.quote(overpass_query)}".encode('utf-8')
+        headers = {'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'FindAGraveBot/2.0 (Genealogy Research Tool)'}
+        try:
+            req = urllib.request.Request(url, data=data_bytes, headers=headers)
+            res_data = json.loads(urllib.request.urlopen(req, timeout=15.0).read().decode('utf-8'))
+            osm_elements = res_data.get('elements', [])
+            for el in osm_elements:
+                tags = el.get('tags', {})
+                fg_ref = tags.get('ref:findagrave') or tags.get('ref:find_a_grave') or tags.get('findagrave')
+                if fg_ref:
+                    osm_type = el.get('type', 'way')
+                    osm_id_str = f"{osm_type}/{el['id']}" if osm_type != 'way' else str(el['id'])
+                    osm_tag_map[str(fg_ref).strip()] = {
+                        'osm_id': osm_id_str,
+                        'wikidata': tags.get('wikidata', ''),
+                        'name': tags.get('name', '')
+                    }
+        except Exception as e:
+            print("Bulk Overpass Error:", e)
+
+    # Combine matches
+    results = []
+    for c in cemeteries:
+        cid = str(c.get('id') or '').strip()
+        has_osm = bool((c.get('osm_id') or '').strip())
+        has_wd = bool((c.get('wikidata_qid') or '').strip())
+
+        if has_osm and has_wd:
+            continue
+
+        sug_osm = None
+        osm_reason = ""
+        sug_wd = None
+        wd_reason = ""
+
+        # Check exact tag match on OSM
+        if not has_osm and cid in osm_tag_map:
+            sug_osm = osm_tag_map[cid]['osm_id']
+            osm_reason = "🎯 Exact ref:findagrave tag on OSM"
+            if not has_wd and osm_tag_map[cid]['wikidata']:
+                sug_wd = osm_tag_map[cid]['wikidata']
+                wd_reason = "🔗 Matched via OSM wikidata tag"
+
+        # Check exact P2025 match on Wikidata
+        if not has_wd and not sug_wd and cid in wikidata_map:
+            sug_wd = wikidata_map[cid]
+            wd_reason = "🎯 Exact Find a Grave ID (P2025) on Wikidata"
+
+        if sug_osm or sug_wd:
+            results.append({
+                "cemetery_id": cid,
+                "cemetery_name": c.get('name') or '',
+                "suggested_osm_id": sug_osm,
+                "osm_reason": osm_reason,
+                "suggested_wikidata_qid": sug_wd,
+                "wikidata_reason": wd_reason,
+                "confidence": "high"
+            })
+
+    return jsonify({"success": True, "matches": results})
+
+@app.route('/api/county/apply_matches', methods=['POST'])
+def api_county_apply_matches():
+    data = request.get_json() or {}
+    matches = data.get('matches', [])
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    
+    updated_count = 0
+    conn = database.get_db_conn()
+    try:
+        cursor = conn.cursor()
+        for m in matches:
+            cid = m.get('cemetery_id')
+            osm_id = (m.get('suggested_osm_id') or '').strip()
+            wikidata_qid = (m.get('suggested_wikidata_qid') or '').strip()
+            
+            if not cid:
+                continue
+                
+            updates = []
+            params = []
+            if osm_id:
+                updates.append("osm_id = ?, osm_confirmed = 1, osm_date = ?")
+                params.extend([osm_id, today_str])
+            if wikidata_qid:
+                updates.append("wikidata_qid = ?, wikidata_confirmed = 1, wikidata_date = ?")
+                params.extend([wikidata_qid, today_str])
+                
+            if updates:
+                params.append(cid)
+                sql = f"UPDATE cemeteries SET {', '.join(updates)} WHERE id = ?;"
+                cursor.execute(sql, params)
+                updated_count += 1
+                
+        conn.commit()
+    finally:
+        conn.close()
+        
+    return jsonify({"success": True, "updated_count": updated_count})
+
+@app.route('/api/cemetery/automatch/<cemetery_id>')
+def api_cemetery_automatch_single(cemetery_id):
+    import urllib.request
+    import urllib.parse
+    import json
+
+    c = database.get_cemetery(cemetery_id)
+    if not c:
+        return jsonify({"success": False, "error": "Cemetery not found"})
+    c = dict(c)
+
+    cid = str(c.get('id') or '').strip()
+    name = c.get('name') or ''
+    county = c.get('county') or ''
+    state = c.get('state') or ''
+    lat = c.get('gps_lat')
+    lng = c.get('gps_lng')
+
+    existing_wd = (c.get('wikidata_qid') or '').strip()
+    existing_osm = (c.get('osm_id') or '').strip()
+
+    found_wikidata = existing_wd or None
+    wikidata_reason = "✔ Existing in local database" if existing_wd else ""
+    found_osm = existing_osm or None
+    osm_reason = "✔ Existing in local database" if existing_osm else ""
+
+    # 1. Wikidata P2025 lookup (if missing)
+    if not found_wikidata and cid and not c.get('is_custom'):
+        try:
+            sparql = f"""
+            SELECT ?item ?itemLabel WHERE {{
+              ?item wdt:P2025 "{cid}" .
+              SERVICE wikibase:label {{ bd:serviceParam wikibase:language "en". }}
+            }}
+            """
+            url = "https://query.wikidata.org/sparql?query=" + urllib.parse.quote(sparql) + "&format=json"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) FindAGraveBot/2.0 (Genealogy Research Tool)'})
+            res_data = json.loads(urllib.request.urlopen(req, timeout=8.0).read().decode('utf-8'))
+            bindings = res_data.get('results', {}).get('bindings', [])
+            if bindings:
+                found_wikidata = bindings[0]['item']['value'].split('/')[-1]
+                wikidata_reason = "🎯 Exact Find a Grave ID (P2025) on Wikidata"
+        except Exception as e:
+            pass
+
+    # 2. Wikidata REST API Search Fallback (if SPARQL timed out or found nothing)
+    if not found_wikidata and name:
+        try:
+            search_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(name)}&language=en&format=json&type=item"
+            req = urllib.request.Request(search_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) FindAGraveBot/2.0 (Genealogy Research Tool)'})
+            res_data = json.loads(urllib.request.urlopen(req, timeout=6.0).read().decode('utf-8'))
+            for item in res_data.get('search', []):
+                desc = (item.get('description') or '').lower()
+                clean_county = county.lower().replace(' county', '').strip()
+                if clean_county and clean_county in desc:
+                    found_wikidata = item.get('id')
+                    wikidata_reason = f"🔍 Matched via Wikidata Search API ({county})"
+                    break
+        except Exception as e:
+            pass
+
+    # 3. Overpass API lookup (if missing)
+    if not found_osm:
+        try:
+            lat_num = float(lat) if lat is not None else 0.0
+            lng_num = float(lng) if lng is not None else 0.0
+
+            around_clause = ""
+            if lat_num != 0 and lng_num != 0:
+                around_clause = f"""
+  nwr["amenity"="cemetery"](around:1500, {lat_num}, {lng_num});
+  nwr["landuse"="cemetery"](around:1500, {lat_num}, {lng_num});"""
+
+            overpass_query = f"""[out:json][timeout:15];
+(
+  {around_clause}
+  nwr["ref:findagrave"="{cid}"];
+  nwr["ref:find_a_grave"="{cid}"];
+  nwr["findagrave"="{cid}"];
+);
+out center tags;"""
+
+            url = "https://overpass-api.de/api/interpreter"
+            data_bytes = f"data={urllib.parse.quote(overpass_query)}".encode('utf-8')
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'FindAGraveBot/2.0 (Genealogy Research Tool)'}
+            req = urllib.request.Request(url, data=data_bytes, headers=headers)
+            res_data = json.loads(urllib.request.urlopen(req, timeout=12.0).read().decode('utf-8'))
+            elements = res_data.get('elements', [])
+
+            exact_tag_el = None
+            for el in elements:
+                tags = el.get('tags', {})
+                if str(tags.get('ref:findagrave') or '').strip() == cid or str(tags.get('ref:find_a_grave') or '').strip() == cid or str(tags.get('findagrave') or '').strip() == cid:
+                    exact_tag_el = el
+                    break
+
+            if exact_tag_el:
+                osm_type = exact_tag_el.get('type', 'way')
+                found_osm = f"{osm_type}/{exact_tag_el['id']}" if osm_type != 'way' else str(exact_tag_el['id'])
+                osm_reason = "🎯 Exact ref:findagrave tag on OSM"
+                if not found_wikidata and exact_tag_el.get('tags', {}).get('wikidata'):
+                    found_wikidata = exact_tag_el['tags']['wikidata']
+                    wikidata_reason = "🔗 Matched via OSM wikidata tag"
+            elif elements:
+                first_el = elements[0]
+                osm_type = first_el.get('type', 'way')
+                found_osm = f"{osm_type}/{first_el['id']}" if osm_type != 'way' else str(first_el['id'])
+                osm_reason = f"📍 Nearby cemetery on OSM ({first_el.get('tags', {}).get('name', name)})"
+                if not found_wikidata and first_el.get('tags', {}).get('wikidata'):
+                    found_wikidata = first_el['tags']['wikidata']
+                    wikidata_reason = "🔗 Matched via OSM wikidata tag"
+        except Exception as e:
+            pass
+
+    return jsonify({
+        "success": True,
+        "cemetery_id": cid,
+        "cemetery_name": name,
+        "suggested_wikidata_qid": found_wikidata,
+        "wikidata_reason": wikidata_reason,
+        "suggested_osm_id": found_osm,
+        "osm_reason": osm_reason
+    })
+
+@app.route('/api/cemetery/wikitree_snippet/<cemetery_id>')
+def api_cemetery_wikitree_snippet(cemetery_id):
+    import urllib.parse
+
+    c = database.get_cemetery(cemetery_id)
+    if not c:
+        return jsonify({"success": False, "error": "Cemetery not found"})
+    c = dict(c)
+
+    name = (c.get('name') or '').strip()
+    nickname = (c.get('nickname') or '').strip()
+    county = (c.get('county') or '').strip()
+    state = (c.get('state') or 'West Virginia').strip()
+    location_str = (c.get('location') or '').strip()
+    
+    # Extract city/town from location string (e.g. "Ona, Cabell County, West Virginia, USA")
+    city = ""
+    if location_str:
+        parts = [p.strip() for p in location_str.split(',')]
+        if parts:
+            first_part = parts[0]
+            if not any(kw in first_part.lower() for kw in ['county', 'west virginia', 'usa', '*no gps']):
+                city = first_part
+
+    location_fmt = f"{city}, {state}" if city else (f"{county}, {state}" if county else state)
+    category_title = f"Category:{name}, {location_fmt}"
+    parent_category = f"{county}, {state}, Cemeteries" if county else f"{state}, Cemeteries"
+
+    lat = c.get('gps_lat')
+    lng = c.get('gps_lng')
+    has_gps = lat is not None and lng is not None and float(lat or 0) != 0 and float(lng or 0) != 0
+    coord_str = f"{float(lat):.5f}, {float(lng):.5f}" if has_gps else ""
+
+    lines = ["{{CategoryInfoBox Cemetery"]
+    lines.append(f"|name={name}")
+    if nickname and nickname != name and nickname != c.get('id'):
+        lines.append(f"|aka={nickname}")
+    lines.append(f"|parent={parent_category}")
+    lines.append(f"|location={location_fmt}")
+    if c.get('id') and not c.get('is_custom'):
+        lines.append(f"|findagraveID={c['id']}")
+    if c.get('wikidata_qid'):
+        lines.append(f"|wikidataID={c['wikidata_qid'].strip()}")
+    if coord_str:
+        lines.append(f"|coordinate={coord_str}")
+    lines.append("}}")
+    lines.append("")
+    lines.append(f"[[Category:{parent_category}]]")
+
+    markup = "\n".join(lines)
+    wikitree_url = f"https://www.wikitree.com/wiki/{urllib.parse.quote(category_title.replace(' ', '_'))}"
+
+    return jsonify({
+        "success": True,
+        "cemetery_id": c.get('id'),
+        "cemetery_name": name,
+        "category_title": category_title,
+        "category_url": wikitree_url,
+        "markup": markup
+    })
 
 
 if __name__ == '__main__':

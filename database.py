@@ -125,10 +125,90 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_relationships_from_type ON relationships(from_memorial_id, relationship_type);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_download_queue_cem_status ON download_queue(cemetery_id, status);")
         
-        # Clean up legacy numeric memorial IDs that mistakenly populated surname column
-        cursor.execute("UPDATE memorials SET surname = '' WHERE surname GLOB '[0-9]*';")
+        # 5. Place QIDs Cache table for Wikidata QuickStatements
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS place_qids (
+            place_name TEXT PRIMARY KEY,
+            qid TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
         
         conn.commit()
+        seed_place_qids()
+    finally:
+        conn.close()
+
+SEEDED_PLACE_QIDS = {
+    # West Virginia Counties (Verified Wikidata QIDs)
+    "cabell county": "Q494129",
+    "cabell": "Q494129",
+    "kanawha county": "Q501800",
+    "kanawha": "Q501800",
+    "wayne county": "Q495126",
+    "wayne": "Q495126",
+    "mason county": "Q501830",
+    "mason": "Q501830",
+    "putnam county": "Q501809",
+    "putnam": "Q501809",
+    "lincoln county": "Q495151",
+    "lincoln": "Q495151",
+
+    # Municipalities / Places (Verified Wikidata QIDs)
+    "salt rock": "Q4406403",
+    "barboursville": "Q2280481",
+    "huntington": "Q241808",
+    "milton": "Q3313661",
+    "culloden": "Q3161331",
+    "lesage": "Q4406469",
+    "ona": "Q3476433",
+    "cox landing": "Q5179899",
+    "greenbottom": "Q5603844",
+    "charleston": "Q44571",
+    "west virginia": "Q1371"
+}
+
+def seed_place_qids():
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        for name, qid in SEEDED_PLACE_QIDS.items():
+            cursor.execute("INSERT OR IGNORE INTO place_qids (place_name, qid) VALUES (?, ?);", (name.lower().strip(), qid))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_place_qid(place_name):
+    if not place_name:
+        return None
+    key = place_name.lower().strip()
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT qid FROM place_qids WHERE place_name = ?;", (key,))
+        row = cursor.fetchone()
+        return row['qid'] if row else None
+    finally:
+        conn.close()
+
+def save_place_qid(place_name, qid):
+    if not place_name or not qid:
+        return
+    key = place_name.lower().strip()
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO place_qids (place_name, qid, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP);", (key, qid.strip().upper()))
+        conn.commit()
+    finally:
+        conn.close()
+
+def get_all_place_qids():
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT place_name, qid FROM place_qids;")
+        return {row['place_name']: row['qid'] for row in cursor.fetchall()}
     finally:
         conn.close()
 
@@ -138,17 +218,21 @@ def add_cemetery(cemetery_id, nickname=None, name=None, location=None, gps_lat=N
     conn = get_db_conn()
     try:
         cursor = conn.cursor()
-        db_nickname = str(cemetery_id)
+        db_nickname = str(nickname).strip() if nickname and str(nickname).strip() else str(cemetery_id)
         cursor.execute("""
             INSERT INTO cemeteries (id, nickname, name, location, gps_lat, gps_lng)
             VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
-                nickname=excluded.nickname,
-                name=coalesce(excluded.name, name),
-                location=coalesce(excluded.location, location),
-                gps_lat=coalesce(excluded.gps_lat, gps_lat),
-                gps_lng=coalesce(excluded.gps_lng, gps_lng);
-        """, (cemetery_id, db_nickname, name, location, gps_lat, gps_lng))
+                nickname=CASE 
+                    WHEN excluded.nickname != '' AND excluded.nickname != cast(excluded.id as text) AND excluded.nickname != excluded.name 
+                    THEN excluded.nickname 
+                    ELSE cemeteries.nickname 
+                END,
+                name=coalesce(nullif(excluded.name, ''), cemeteries.name),
+                location=coalesce(nullif(excluded.location, ''), cemeteries.location),
+                gps_lat=coalesce(excluded.gps_lat, cemeteries.gps_lat),
+                gps_lng=coalesce(excluded.gps_lng, cemeteries.gps_lng);
+        """, (str(cemetery_id), db_nickname, name, location, gps_lat, gps_lng))
         conn.commit()
     finally:
         conn.close()
@@ -178,21 +262,34 @@ def get_cemetery(cemetery_id):
     finally:
         conn.close()
 
-def parse_cemetery_text(raw_name, raw_location=None):
+def parse_cemetery_text(raw_name, raw_location=None, raw_nickname=None):
+    if raw_nickname and raw_nickname.strip():
+        nickname = raw_nickname.strip()
+    else:
+        nickname = ""
+
     if not raw_name:
-        return "", "", raw_location or ""
+        return "", nickname, raw_location or ""
         
     lines = [line.strip() for line in raw_name.split('\n') if line.strip()]
     if not lines:
-        return "", "", raw_location or ""
+        return "", nickname, raw_location or ""
         
     clean_name = lines[0]
-    nickname = ""
     clean_loc = raw_location or ""
     
-    aka_match = re.search(r'Also known as:\s*([^\n]+)', raw_name, re.IGNORECASE)
-    if aka_match:
-        nickname = aka_match.group(1).strip()
+    if not nickname:
+        aka_patterns = [
+            r'Also known as:\s*([^\n,]+)',
+            r'AKA:\s*([^\n,]+)',
+            r'Alternate name:\s*([^\n,]+)',
+            r'\(aka\s+([^)]+)\)'
+        ]
+        for pat in aka_patterns:
+            aka_match = re.search(pat, raw_name, re.IGNORECASE)
+            if aka_match:
+                nickname = aka_match.group(1).strip()
+                break
         
     if 'also known as' in clean_name.lower():
         parts = re.split(r'also known as:?', clean_name, flags=re.IGNORECASE)
@@ -210,8 +307,9 @@ def parse_cemetery_text(raw_name, raw_location=None):
             
     return clean_name, nickname, clean_loc
 
-def upsert_county_cemetery(cemetery_id, name, location, state=None, county=None, gps_lat=None, gps_lng=None, fag_burial_count=0):
-    clean_name, clean_nick, clean_loc = parse_cemetery_text(name, location)
+def upsert_county_cemetery(cemetery_id, name, location, state=None, county=None, gps_lat=None, gps_lng=None, fag_burial_count=0, raw_text=None, nickname=None):
+    combined_name = f"{name}\n{raw_text}" if raw_text else name
+    clean_name, clean_nick, clean_loc = parse_cemetery_text(combined_name, location, raw_nickname=nickname)
     conn = get_db_conn()
     try:
         cursor = conn.cursor()
@@ -219,29 +317,34 @@ def upsert_county_cemetery(cemetery_id, name, location, state=None, county=None,
             INSERT INTO cemeteries (id, nickname, name, location, state, county, gps_lat, gps_lng, fag_burial_count, is_custom)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             ON CONFLICT(id) DO UPDATE SET
-                nickname=CASE WHEN excluded.nickname != '' THEN excluded.nickname ELSE cemeteries.nickname END,
-                name=coalesce(excluded.name, name),
-                location=coalesce(excluded.location, location),
-                state=coalesce(excluded.state, state),
-                county=coalesce(excluded.county, county),
-                gps_lat=coalesce(excluded.gps_lat, gps_lat),
-                gps_lng=coalesce(excluded.gps_lng, gps_lng),
-                fag_burial_count=max(coalesce(excluded.fag_burial_count, 0), coalesce(fag_burial_count, 0));
+                nickname=CASE 
+                    WHEN excluded.nickname != '' AND excluded.nickname != cast(excluded.id as text) AND excluded.nickname != excluded.name 
+                    THEN excluded.nickname 
+                    ELSE cemeteries.nickname 
+                END,
+                name=coalesce(nullif(excluded.name, ''), cemeteries.name),
+                location=coalesce(nullif(excluded.location, ''), cemeteries.location),
+                state=coalesce(nullif(excluded.state, ''), cemeteries.state),
+                county=coalesce(nullif(excluded.county, ''), cemeteries.county),
+                gps_lat=coalesce(excluded.gps_lat, cemeteries.gps_lat),
+                gps_lng=coalesce(excluded.gps_lng, cemeteries.gps_lng),
+                fag_burial_count=max(coalesce(excluded.fag_burial_count, 0), coalesce(cemeteries.fag_burial_count, 0));
         """, (str(cemetery_id), clean_nick, clean_name, clean_loc, state, county, gps_lat, gps_lng, fag_burial_count))
         conn.commit()
     finally:
         conn.close()
 
-def add_custom_cemetery(name, state, county, location="", gps_lat=None, gps_lng=None, source_doc="", notes=""):
+def add_custom_cemetery(name, state, county, location="", gps_lat=None, gps_lng=None, source_doc="", notes="", nickname=None):
     import time
     custom_id = f"HIST_{int(time.time() * 1000)}"
+    nick_val = nickname.strip() if nickname and nickname.strip() else name
     conn = get_db_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO cemeteries (id, nickname, name, location, state, county, gps_lat, gps_lng, is_custom, source_doc, notes)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
-        """, (custom_id, name, name, location, state, county, gps_lat, gps_lng, source_doc, notes))
+        """, (custom_id, nick_val, name, location, state, county, gps_lat, gps_lng, source_doc, notes))
         conn.commit()
         return custom_id
     finally:

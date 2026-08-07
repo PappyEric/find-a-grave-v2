@@ -78,5 +78,52 @@ class TestCountyDiscovery(unittest.TestCase):
         self.assertEqual(cem['osm_id'], 'way/987654')
         self.assertEqual(cem['osm_confirmed'], 1)
 
+    def test_aka_parsing_and_custom_nickname(self):
+        database.upsert_county_cemetery(
+            cemetery_id="77797",
+            name="Spring Hill Cemetery",
+            location="Huntington, Cabell County, West Virginia",
+            state="West Virginia",
+            county="Cabell County",
+            raw_text="Spring Hill Cemetery\nAlso known as: Huntington City Cemetery\nHuntington, Cabell County"
+        )
+        cem = database.get_cemetery("77797")
+        self.assertEqual(cem['name'], "Spring Hill Cemetery")
+        self.assertEqual(cem['nickname'], "Huntington City Cemetery")
+
+        cid = database.add_custom_cemetery(
+            name="Pioneer Park",
+            state="West Virginia",
+            county="Cabell County",
+            nickname="Old Settlers Graveyard"
+        )
+        custom_cem = database.get_cemetery(cid)
+        self.assertEqual(custom_cem['nickname'], "Old Settlers Graveyard")
+
+    def test_non_destructive_overwrites(self):
+        database.upsert_county_cemetery(
+            cemetery_id="888888",
+            name="Oaklawn Memorial Park",
+            location="Huntington, Cabell County",
+            gps_lat=38.4172,
+            gps_lng=-82.2422,
+            raw_text="Oaklawn Memorial Park\nAlso known as: Oaklawn Cemetery"
+        )
+        cem = database.get_cemetery("888888")
+        self.assertEqual(cem['nickname'], "Oaklawn Cemetery")
+        self.assertEqual(cem['gps_lat'], 38.4172)
+
+        # Attempt to overwrite with numeric ID nickname and NULL GPS via add_cemetery
+        database.add_cemetery("888888", nickname="888888", name="Oaklawn Memorial Park", location="", gps_lat=None, gps_lng=None)
+        cem_after = database.get_cemetery("888888")
+        self.assertEqual(cem_after['nickname'], "Oaklawn Cemetery")
+        self.assertEqual(cem_after['gps_lat'], 38.4172)
+
+        # Attempt to overwrite with empty nickname and NULL GPS via upsert_county_cemetery
+        database.upsert_county_cemetery("888888", name="", location="", nickname="", gps_lat=None, gps_lng=None)
+        cem_after2 = database.get_cemetery("888888")
+        self.assertEqual(cem_after2['nickname'], "Oaklawn Cemetery")
+        self.assertEqual(cem_after2['gps_lat'], 38.4172)
+
 if __name__ == '__main__':
     unittest.main()

@@ -186,6 +186,41 @@ _(Sibling **Allen Cleveland Curry** [1923–1962] highlighted in purple, buried 
 
 ---
 
+## 🏛️ Step 7: County Cemetery Audit & Cross-Platform Synchronization Hub (`/county`)
+
+The **County Cemetery Audit Hub** (`/county`) allows you to systematically audit every cemetery in a given US county, verify locations on OpenStreetMap, link or create Wikidata items, and generate standardized WikiTree category pages.
+
+### Key Tools & Features:
+
+1. **County Discovery & Search Scraper**:
+   - Enter any State and County (e.g., `West Virginia`, `Cabell County`) and click `🌐 Scrape FG Search` to auto-discover all cemeteries in Find a Grave's county directory.
+
+2. **1-by-1 Cemetery Auto-Matcher (`🔍 Match`)**:
+   - Click **`🔍 Match`** on any individual cemetery row. The system queries OpenStreetMap (Overpass API) and Wikidata (SPARQL & REST Search API) specifically for that cemetery.
+   - Discovered **OSM IDs** and **Wikidata QIDs** are auto-filled into the table inputs so you can inspect them before saving.
+
+3. **County Preview Auto-Matcher (`🔍 Auto-Match IDs`)**:
+   - Click **`🔍 Auto-Match IDs`** in the header to run a fast bulk scan across all cemeteries in the county.
+   - Opens a preview modal showing suggestions with confidence badges (`🎯 Exact Tag`, `📍 Nearby Spatial`, `🔗 OSM Wikidata Tag`) allowing 1-click review and acceptance.
+
+4. **Wikidata QuickStatements V2 Snippets (`⚡ QS`)**:
+   - Click **`⚡ QS`** on any cemetery row to generate a Wikidata QuickStatements script pre-filled with:
+     - `P31` = `Q39614` (instance of cemetery)
+     - `P17` = `Q30` (Country: United States)
+     - `P131` = Town QID & County QID (Administrative territorial entities)
+     - `P625` = `@LAT/LNG` (Coordinate location)
+     - `P2025` = Find a Grave Cemetery ID
+     - `P7755` = WikiTree Category ID
+
+5. **WikiTree Category Generator (`🌳 WT`)**:
+   - Click **`🌳 WT`** to generate the official `CategoryInfoBox Cemetery` markup block and standardized Category Page Title (`Category:Cemetery Name, City, State`) following WikiTree Cemeterist Project guidelines.
+   - Includes **`📋 Copy Title`**, **`📋 Copy Markup`**, and **`🌐 Open WikiTree Category ↗`** buttons.
+
+6. **Custom Historical Cemetery Tracking**:
+   - Click **`➕ Add Custom / Historical Cemetery`** to document unlisted or historical cemeteries not found on Find a Grave. Record atlas/deed sources and link them to Find a Grave later with **`🔗 Link FG ID`**.
+
+---
+
 ## 💡 System Overview & Future Roadmap
 
 In general terms, the workstation operates by fetching and parsing Find a Grave pages to populate a local SQLite database. Once you end/close your session, don't worry! The data is saved in your database for later use. When you restart it, it will use the data in the database to rebuild the web application so you can continue where you left off.

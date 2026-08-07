@@ -68,6 +68,15 @@ The workstation is served locally at `http://127.0.0.1:5050` with top-level head
   - **Quick Presets**: One-click searches for `🎖️ Military Infantry`, `🏛️ Masons / Masonic`, `📜 Inscriptions "Beloved"`, `🎖️ WWII Veterans`, and `🏛️ DAR`.
 - 🔄 **Stash Sync & Change Tracker**: Health auditor monitoring missing bios, missing inscriptions, and missing GPS coordinates for incremental scrape refreshes.
 
+### 6. 🏛️ County Cemetery Audit & Cross-Platform Synchronization Hub (`/county`)
+
+- **County Discovery & Search Scraper**: Select any US State and County (e.g., `West Virginia`, `Cabell County`) to view all stashed cemeteries, or click `🌐 Scrape FG Search` to auto-discover every cemetery in the county directory.
+- **Granular 1-by-1 Auto-Match Engine**: Click `🔍 Match` on any cemetery row to auto-discover matching OpenStreetMap nodes/ways (via Overpass API) and Wikidata items (via SPARQL & REST Search API).
+- **County Preview Auto-Matcher**: Click `🔍 Auto-Match IDs` for a bulk scan across the entire county with confidence badges (`🎯 Exact Tag`, `📍 Nearby Spatial`, `🔗 OSM Wikidata Tag`).
+- **Wikidata QuickStatements V2 Generator**: Click `⚡ QS` to generate clean QuickStatements commands with `P31` (cemetery), `P17` (USA Q30), `P131` (Town QID + County QID), `P625` (GPS coordinates), `P2025` (Find a Grave ID), and `P7755` (WikiTree Category).
+- **WikiTree Category Generator**: Click `🌳 WT` to generate official `CategoryInfoBox Cemetery` markup and standardized category page titles (`Category:Cemetery Name, City, State`) following WikiTree Cemeterist Project standards.
+- **Custom Historical Cemetery Tracking**: Add unlisted or historical cemeteries not found on Find a Grave, record deed/atlas source documentation, and link them to official Find a Grave IDs later.
+
 ---
 
 ## 🛠️ Data Structure & Performance Enhancements

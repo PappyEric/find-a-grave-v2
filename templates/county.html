@@ -270,6 +270,88 @@
             color: var(--text-secondary);
         }
 
+        .sync-link {
+            color: #60a5fa;
+            font-size: 0.72rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.15s ease;
+        }
+
+        .sync-link:hover {
+            color: #93c5fd;
+            text-decoration: underline;
+        }
+
+        .sync-link-icon {
+            color: #60a5fa;
+            font-size: 0.85rem;
+            text-decoration: none;
+            font-weight: 700;
+            line-height: 1;
+            padding: 0.15rem 0.2rem;
+            border-radius: 4px;
+            transition: color 0.15s ease, background 0.15s ease;
+        }
+
+        .sync-link-icon:hover {
+            color: #93c5fd;
+            background: rgba(96, 165, 250, 0.15);
+            text-decoration: none;
+        }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.15s ease;
+        }
+
+        th.sortable:hover {
+            color: #60a5fa;
+        }
+
+        .sort-icon {
+            font-size: 0.72rem;
+            color: #60a5fa;
+            margin-left: 0.25rem;
+        }
+
+        .filter-row th {
+            padding: 0.4rem 0.4rem;
+            background: #1e293b;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .filter-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.25rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            box-sizing: border-box;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .gps-link {
+            color: #34d399;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.82rem;
+            white-space: nowrap;
+            transition: color 0.15s ease;
+        }
+
+        .gps-link:hover {
+            color: #6ee7b7;
+            text-decoration: underline;
+        }
+
         /* Modal styling */
         .modal-overlay {
             position: fixed;
@@ -331,9 +413,9 @@
             <input type="text" id="countyInput" class="form-input" placeholder="County (e.g. Cabell County)" value="Cabell County" style="width: 170px;">
             <input type="text" id="locationIdInput" class="form-input" placeholder="Location ID or URL (Optional)" value="" style="width: 220px;" title="Optional Find a Grave Location ID (e.g. county_3069) or search URL">
             <button class="btn" onclick="loadCountyCemeteries()">🔍 View County</button>
-            <button class="btn btn-purple" onclick="startDiscovery()">🌐 Scrape FAG Search</button>
+            <button class="btn btn-purple" onclick="startDiscovery()">🌐 Scrape FG Search</button>
+            <button class="btn btn-purple" onclick="runAutoMatch()" title="Auto-discover OSM IDs and Wikidata QIDs for county cemeteries">🔍 Auto-Match IDs</button>
             <button class="btn btn-green" onclick="exportCSV()">📥 Export CSV</button>
-            <button class="btn btn-amber" onclick="exportQuickStatements()">⚡ QuickStatements</button>
         </div>
     </div>
 
@@ -350,11 +432,7 @@
             <span class="value" id="kpiTotal">0</span>
         </div>
         <div class="kpi-card">
-            <span class="label">Historical / Custom</span>
-            <span class="value" id="kpiCustom" style="color: var(--accent-purple);">0</span>
-        </div>
-        <div class="kpi-card">
-            <span class="label">FAG Listed Burials</span>
+            <span class="label">FG Listed Burials</span>
             <span class="value" id="kpiFagBurials" style="color: #60a5fa;">0</span>
         </div>
         <div class="kpi-card">
@@ -385,24 +463,80 @@
             <table>
                 <thead>
                     <tr>
-                        <th>FAG ID / Type</th>
-                        <th>Cemetery Name</th>
-                        <th>Location</th>
-                        <th>Burials (FAG / Local)</th>
-                        <th>WikiData (QID)</th>
-                        <th>OpenStreetMap (ID)</th>
-                        <th>WikiTree (Category/ID)</th>
-                        <th>Source / Notes</th>
+                        <th class="sortable" onclick="handleSort('id')">FG ID / Type <span id="sort_icon_id" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('name')">Cemetery Name <span id="sort_icon_name" class="sort-icon">▲</span></th>
+                        <th class="sortable" onclick="handleSort('nickname')">Also Known As (AKA) <span id="sort_icon_nickname" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('location')">Location <span id="sort_icon_location" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('gps')">GPS <span id="sort_icon_gps" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('burials')">Burials<br><small style="font-weight:normal; font-size:0.75rem;">(FG / Local)</small> <span id="sort_icon_burials" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('wikidata')">WikiData (QID) <span id="sort_icon_wikidata" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('osm')">OSM ID <span id="sort_icon_osm" class="sort-icon"></span></th>
+                        <th class="sortable" onclick="handleSort('wikitree')">WikiTree (Category/ID) <span id="sort_icon_wikitree" class="sort-icon"></span></th>
                         <th>Actions</th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th>
+                            <select id="filter_type" class="filter-input" onchange="applyFiltersAndSort()">
+                                <option value="all">All</option>
+                                <option value="fg">FG Only</option>
+                                <option value="custom">Historical</option>
+                            </select>
+                        </th>
+                        <th>
+                            <input type="text" id="filter_name" class="filter-input" placeholder="Search name..." oninput="applyFiltersAndSort()">
+                        </th>
+                        <th>
+                            <input type="text" id="filter_aka" class="filter-input" placeholder="Search AKA..." oninput="applyFiltersAndSort()">
+                        </th>
+                        <th>
+                            <input type="text" id="filter_location" class="filter-input" placeholder="Search location..." oninput="applyFiltersAndSort()">
+                        </th>
+                        <th>
+                            <select id="filter_gps" class="filter-input" onchange="applyFiltersAndSort()">
+                                <option value="all">All</option>
+                                <option value="yes">GPS (Yes)</option>
+                                <option value="no">GPS (No)</option>
+                            </select>
+                        </th>
+                        <th>
+                            <select id="filter_burials" class="filter-input" onchange="applyFiltersAndSort()">
+                                <option value="all">All</option>
+                                <option value="local">Has Local</option>
+                                <option value="fg">Has FG</option>
+                            </select>
+                        </th>
+                        <th>
+                            <select id="filter_wikidata" class="filter-input" onchange="applyFiltersAndSort()">
+                                <option value="all">All</option>
+                                <option value="yes">Wikidata (Yes)</option>
+                                <option value="no">Wikidata (No)</option>
+                            </select>
+                        </th>
+                        <th>
+                            <select id="filter_osm" class="filter-input" onchange="applyFiltersAndSort()">
+                                <option value="all">All</option>
+                                <option value="yes">OSM (Yes)</option>
+                                <option value="no">OSM (No)</option>
+                            </select>
+                        </th>
+                        <th>
+                            <select id="filter_wikitree" class="filter-input" onchange="applyFiltersAndSort()">
+                                <option value="all">All</option>
+                                <option value="yes">WikiTree (Yes)</option>
+                                <option value="no">WikiTree (No)</option>
+                            </select>
+                        </th>
+                        <th>
+                            <button class="btn btn-secondary" style="padding: 0.2rem 0.4rem; font-size: 0.72rem; width: 100%;" onclick="clearFilters()" title="Reset all search filters">Reset Filters</button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="cemeteryTableBody">
-                    <tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading cemeteries...</td></tr>
+                    <tr><td colspan="10" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading cemeteries...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
-
 </div>
 
 <!-- Modal: Add Custom Historical Cemetery -->
@@ -414,6 +548,7 @@
         </div>
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
             <input type="text" id="custName" class="form-input" placeholder="Cemetery Name *">
+            <input type="text" id="custNickname" class="form-input" placeholder="Also Known As / Alternate Name (Optional)">
             <input type="text" id="custState" class="form-input" placeholder="State *" value="West Virginia">
             <input type="text" id="custCounty" class="form-input" placeholder="County *" value="Cabell County">
             <input type="text" id="custLocation" class="form-input" placeholder="City / Location Details">
@@ -450,9 +585,85 @@
     </div>
 </div>
 
+<!-- Modal: QuickStatements V2 Snippet -->
+<div id="qsModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3 id="qsModalTitle">⚡ QuickStatements V2</h3>
+            <button class="close-btn" onclick="closeQsModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <p style="margin:0; font-size:0.85rem; color: var(--text-secondary);" id="qsModalSubtitle">Copy the QuickStatements commands below to import into Wikidata.</p>
+            <textarea id="qsTextarea" class="form-input" rows="8" readonly style="font-family: monospace; font-size: 0.82rem; background: #0f172a; white-space: pre;"></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+                <button class="btn btn-secondary" onclick="closeQsModal()">Close</button>
+                <button class="btn btn-amber" onclick="copyQsText()">📋 Copy Commands</button>
+                <button class="btn btn-green" onclick="downloadQsFile()">📥 Download .TXT</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Auto-Match Results -->
+<div id="autoMatchModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 850px; width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-header">
+            <h3 id="autoMatchTitle">🔍 Auto-Match Results</h3>
+            <button class="close-btn" onclick="closeAutoMatchModal()">&times;</button>
+        </div>
+        <p style="margin:0; font-size:0.85rem; color: var(--text-secondary);" id="autoMatchSubtitle">Scanning OpenStreetMap & Wikidata for matches...</p>
+        <div id="autoMatchList" style="flex: 1; overflow-y: auto; margin: 1rem 0; display: flex; flex-direction: column; gap: 0.6rem; min-height: 180px;">
+            <!-- Matches list will render here -->
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+            <span id="autoMatchSummary" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="closeAutoMatchModal()">Close</button>
+                <button class="btn btn-green" id="btnAcceptAllMatches" onclick="acceptAllMatches()">Accept High-Confidence Matches</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: WikiTree Category Generator -->
+<div id="wikiTreeModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3 id="wtModalTitle">🌳 WikiTree Category Generator</h3>
+            <button class="close-btn" onclick="closeWikiTreeModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <p style="margin:0; font-size:0.85rem; color: var(--text-secondary);" id="wtModalSubtitle">Copy the Category Title and CategoryInfoBox Cemetery markup to create the WikiTree category page.</p>
+            
+            <div>
+                <label style="font-size:0.8rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:0.25rem;">WikiTree Category Page Title:</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="wtCategoryTitleInput" class="form-input" readonly style="font-family: monospace; font-size: 0.85rem; background: #0f172a; flex:1;">
+                    <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="copyWtTitle()">📋 Copy Title</button>
+                </div>
+            </div>
+
+            <div>
+                <label style="font-size:0.8rem; color:var(--text-secondary); font-weight:600; display:block; margin-bottom:0.25rem;">CategoryInfoBox Cemetery Markup:</label>
+                <textarea id="wtTextarea" class="form-input" rows="9" readonly style="font-family: monospace; font-size: 0.82rem; background: #0f172a; white-space: pre;"></textarea>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                <a id="wtPageLink" href="#" target="_blank" class="btn btn-secondary" style="font-size:0.8rem;" title="Open WikiTree category page">🌐 Open WikiTree Category ↗</a>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="closeWikiTreeModal()">Close</button>
+                    <button class="btn btn-green" onclick="copyWtMarkup()">📋 Copy Markup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     let currentCemeteries = [];
     let pollInterval = null;
+    let sortColumn = 'name';
+    let sortDirection = 'asc';
 
     document.addEventListener('DOMContentLoaded', () => {
         loadCountyCemeteries();
@@ -466,42 +677,226 @@
         document.getElementById('tableTitle').innerText = `Cemeteries in ${county || 'All Counties'}, ${state || 'All States'}`;
         const tbody = document.getElementById('cemeteryTableBody');
         if (!preserveScroll) {
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading...</td></tr>`;
         }
 
         try {
             const res = await fetch(`/api/county/list?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}`);
             const data = await res.json();
             currentCemeteries = data.cemeteries || [];
-            renderTable(currentCemeteries);
+            applyFiltersAndSort();
             updateKPIs(currentCemeteries);
             if (preserveScroll) {
                 window.scrollTo(0, scrollPos);
             }
         } catch (e) {
             console.error(e);
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 2rem;">Error loading cemetery data.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--accent-red); padding: 2rem;">Error loading cemetery data.</td></tr>`;
         }
+    }
+
+    function handleSort(column) {
+        if (sortColumn === column) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortColumn = column;
+            sortDirection = 'asc';
+        }
+
+        const cols = ['id', 'name', 'nickname', 'location', 'gps', 'burials', 'wikidata', 'osm', 'wikitree'];
+        cols.forEach(c => {
+            const iconEl = document.getElementById(`sort_icon_${c}`);
+            if (iconEl) {
+                if (c === sortColumn) {
+                    iconEl.innerText = sortDirection === 'asc' ? '▲' : '▼';
+                } else {
+                    iconEl.innerText = '';
+                }
+            }
+        });
+
+        applyFiltersAndSort();
+    }
+
+    function applyFiltersAndSort() {
+        if (!currentCemeteries) return;
+
+        const typeFilter = document.getElementById('filter_type').value;
+        const nameFilter = document.getElementById('filter_name').value.trim().toLowerCase();
+        const akaFilter = document.getElementById('filter_aka').value.trim().toLowerCase();
+        const locFilter = document.getElementById('filter_location').value.trim().toLowerCase();
+        const gpsFilter = document.getElementById('filter_gps').value;
+        const burialsFilter = document.getElementById('filter_burials').value;
+        const wikidataFilter = document.getElementById('filter_wikidata').value;
+        const osmFilter = document.getElementById('filter_osm').value;
+        const wikitreeFilter = document.getElementById('filter_wikitree').value;
+
+        let filtered = currentCemeteries.filter(c => {
+            if (typeFilter === 'fg' && c.is_custom === 1) return false;
+            if (typeFilter === 'custom' && c.is_custom !== 1) return false;
+
+            if (nameFilter && !(c.name || '').toLowerCase().includes(nameFilter)) return false;
+
+            if (akaFilter) {
+                const nickStr = (c.nickname || '').toLowerCase();
+                if (!nickStr || !nickStr.includes(akaFilter)) return false;
+            }
+
+            if (locFilter && !(c.location || '').toLowerCase().includes(locFilter)) return false;
+
+            const hasGps = c.gps_lat != null && c.gps_lng != null && !isNaN(Number(c.gps_lat)) && !isNaN(Number(c.gps_lng)) && Number(c.gps_lat) !== 0 && Number(c.gps_lng) !== 0;
+            if (gpsFilter === 'yes' && !hasGps) return false;
+            if (gpsFilter === 'no' && hasGps) return false;
+
+            if (burialsFilter === 'local' && !(c.stashed_burial_count > 0)) return false;
+            if (burialsFilter === 'fg' && !(c.fag_burial_count > 0)) return false;
+
+            const hasWikidata = c.wikidata_confirmed === 1 || (c.wikidata_qid && c.wikidata_qid.trim());
+            if (wikidataFilter === 'yes' && !hasWikidata) return false;
+            if (wikidataFilter === 'no' && hasWikidata) return false;
+
+            const hasOsm = c.osm_confirmed === 1 || (c.osm_id && c.osm_id.trim());
+            if (osmFilter === 'yes' && !hasOsm) return false;
+            if (osmFilter === 'no' && hasOsm) return false;
+
+            const hasWikitree = c.wikitree_confirmed === 1 || (c.wikitree_id && c.wikitree_id.trim());
+            if (wikitreeFilter === 'yes' && !hasWikitree) return false;
+            if (wikitreeFilter === 'no' && hasWikitree) return false;
+
+            return true;
+        });
+
+        filtered.sort((a, b) => {
+            let valA, valB;
+            if (sortColumn === 'id') {
+                valA = a.is_custom ? 99999999 : Number(a.id) || 0;
+                valB = b.is_custom ? 99999999 : Number(b.id) || 0;
+            } else if (sortColumn === 'name') {
+                valA = (a.name || '').toLowerCase();
+                valB = (b.name || '').toLowerCase();
+            } else if (sortColumn === 'nickname') {
+                valA = (a.nickname || '').toLowerCase();
+                valB = (b.nickname || '').toLowerCase();
+            } else if (sortColumn === 'location') {
+                valA = (a.location || '').toLowerCase();
+                valB = (b.location || '').toLowerCase();
+            } else if (sortColumn === 'gps') {
+                valA = (a.gps_lat != null && a.gps_lng != null && Number(a.gps_lat) !== 0) ? 1 : 0;
+                valB = (b.gps_lat != null && b.gps_lng != null && Number(b.gps_lat) !== 0) ? 1 : 0;
+            } else if (sortColumn === 'burials') {
+                valA = (a.fag_burial_count || 0) + (a.stashed_burial_count || 0);
+                valB = (b.fag_burial_count || 0) + (b.stashed_burial_count || 0);
+            } else if (sortColumn === 'wikidata') {
+                valA = (a.wikidata_confirmed === 1 || a.wikidata_qid) ? 1 : 0;
+                valB = (b.wikidata_confirmed === 1 || b.wikidata_qid) ? 1 : 0;
+            } else if (sortColumn === 'osm') {
+                valA = (a.osm_confirmed === 1 || a.osm_id) ? 1 : 0;
+                valB = (b.osm_confirmed === 1 || b.osm_id) ? 1 : 0;
+            } else if (sortColumn === 'wikitree') {
+                valA = (a.wikitree_confirmed === 1 || a.wikitree_id) ? 1 : 0;
+                valB = (b.wikitree_confirmed === 1 || b.wikitree_id) ? 1 : 0;
+            }
+
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        const state = document.getElementById('stateInput').value.trim();
+        const county = document.getElementById('countyInput').value.trim();
+        const total = currentCemeteries.length;
+        const showing = filtered.length;
+        document.getElementById('tableTitle').innerText = `Cemeteries in ${county || 'All Counties'}, ${state || 'All States'} (${showing} of ${total} shown)`;
+
+        renderTable(filtered);
+    }
+
+    function clearFilters() {
+        document.getElementById('filter_type').value = 'all';
+        document.getElementById('filter_name').value = '';
+        document.getElementById('filter_aka').value = '';
+        document.getElementById('filter_location').value = '';
+        document.getElementById('filter_gps').value = 'all';
+        document.getElementById('filter_burials').value = 'all';
+        document.getElementById('filter_wikidata').value = 'all';
+        document.getElementById('filter_osm').value = 'all';
+        document.getElementById('filter_wikitree').value = 'all';
+        applyFiltersAndSort();
+    }
+
+    function getWikidataUrl(qid) {
+        if (!qid) return '#';
+        let clean = qid.trim();
+        if (/^\d+$/.test(clean)) clean = 'Q' + clean;
+        else if (clean.toLowerCase().startsWith('q')) clean = 'Q' + clean.slice(1);
+        return `https://www.wikidata.org/wiki/${clean}`;
+    }
+
+    function getRapidEditorOsmUrl(osmId, lat, lng) {
+        let clean = (osmId || '').trim();
+        let entityId = '';
+        if (clean) {
+            if (clean.includes('/')) {
+                entityId = clean;
+            } else if (/^\d+$/.test(clean)) {
+                entityId = `way/${clean}`;
+            } else {
+                entityId = clean;
+            }
+        }
+        
+        let url = 'https://rapideditor.org/edit';
+        let params = [];
+        if (entityId) {
+            params.push(`id=${entityId}`);
+        }
+        if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng)) && Number(lat) !== 0 && Number(lng) !== 0) {
+            params.push(`map=18/${lat}/${lng}`);
+        }
+        
+        return params.length ? `${url}#${params.join('&')}` : '#';
+    }
+
+    function getWikitreeUrl(wikitreeId) {
+        if (!wikitreeId) return '#';
+        let clean = wikitreeId.trim();
+        if (!clean.toLowerCase().startsWith('category:')) {
+            clean = 'Category:' + clean;
+        }
+        const urlParam = clean.replace(/\s+/g, '_');
+        return `https://www.wikitree.com/wiki/${encodeURIComponent(urlParam).replace(/%3A/g, ':')}`;
     }
 
     function renderTable(cemeteries) {
         const tbody = document.getElementById('cemeteryTableBody');
         if (!cemeteries || cemeteries.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">No cemeteries found in local DB for this county. Click <strong>"🌐 Scrape FAG Search"</strong> to discover them from Find a Grave, or add a custom historical entry.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-secondary); padding: 2rem;">No cemeteries found in local DB for this county. Click <strong>"🌐 Scrape FG Search"</strong> to discover them from Find a Grave, or add a custom historical entry.</td></tr>`;
             return;
         }
-
-        const todayStr = new Date().toISOString().split('T')[0];
 
         tbody.innerHTML = cemeteries.map(c => {
             const isCustom = c.is_custom === 1;
             const fagLink = !isCustom ? `<a href="https://www.findagrave.com/cemetery/${c.id}" target="_blank" style="color: #60a5fa; text-decoration: none; font-weight: 600;">${c.id}</a>` : `<span class="badge badge-purple">📜 Historical</span>`;
             
+            const nickStr = (c.nickname || '').trim();
+            const nameStr = (c.name || '').trim();
+            const idStr = String(c.id || '').trim();
+            const hasRealAka = nickStr && nickStr !== nameStr && nickStr !== idStr && !/^\d+$/.test(nickStr);
+
+            const hasGps = c.gps_lat != null && c.gps_lng != null && !isNaN(Number(c.gps_lat)) && !isNaN(Number(c.gps_lng)) && Number(c.gps_lat) !== 0 && Number(c.gps_lng) !== 0;
+            const latVal = hasGps ? Number(c.gps_lat).toFixed(5) : '';
+            const lngVal = hasGps ? Number(c.gps_lng).toFixed(5) : '';
+            const gpsHtml = hasGps ? `<a href="https://rapideditor.org/edit#map=18/${c.gps_lat}/${c.gps_lng}" target="_blank" class="gps-link" title="Open location in RapidEditor.org (OSM)">📍 ${latVal}<br>&nbsp;&nbsp;&nbsp;${lngVal} ↗</a>` : '<span style="color: #475569;">—</span>';
+            
             return `
                 <tr>
                     <td>${fagLink}</td>
                     <td style="font-weight: 600;">${escapeHtml(c.name || 'Unnamed')}</td>
+                    <td>
+                        ${hasRealAka ? `<span style="color: #c084fc; font-weight: 500;">${escapeHtml(c.nickname)}</span>` : '<span style="color: #475569;">—</span>'}
+                    </td>
                     <td style="color: var(--text-secondary); font-size: 0.82rem;">${escapeHtml(c.location || '')}</td>
+                    <td>${gpsHtml}</td>
                     <td>
                         <span style="color: #60a5fa; font-weight: 600;">${(c.fag_burial_count || 0).toLocaleString()}</span> / 
                         <span style="color: var(--accent-green); font-weight: 600;">${(c.stashed_burial_count || 0).toLocaleString()}</span>
@@ -510,65 +905,40 @@
                     <!-- WikiData -->
                     <td>
                         <div class="sync-box">
-                            <input type="checkbox" ${c.wikidata_confirmed ? 'checked' : ''} onchange="updateSyncState('${c.id}', 'wikidata_confirmed', this.checked ? 1 : 0, '${todayStr}')">
-                            <input type="text" class="sync-input" value="${escapeHtml(c.wikidata_qid || '')}" placeholder="QID" onchange="updateSyncState('${c.id}', 'wikidata_qid', this.value)">
+                            <input type="text" class="sync-input" value="${escapeHtml(c.wikidata_qid || '')}" placeholder="QID" onchange="updateSyncId('${c.id}', 'wikidata', this.value)">
+                            <a id="wikidata_link_${c.id}" href="${getWikidataUrl(c.wikidata_qid)}" target="_blank" class="sync-link-icon" style="${c.wikidata_qid ? '' : 'visibility: hidden;'}" title="Open in WikiData">↗</a>
                         </div>
-                        <div id="wikidata_date_${c.id}" class="sync-date" style="${c.wikidata_date && c.wikidata_confirmed ? '' : 'display:none;'}">✔ ${c.wikidata_date || ''}</div>
+                        <div id="wikidata_date_${c.id}" class="sync-date" style="${c.wikidata_date && c.wikidata_qid ? '' : 'display:none;'}">✔ ${c.wikidata_date || ''}</div>
                     </td>
 
                     <!-- OpenStreetMap -->
                     <td>
                         <div class="sync-box">
-                            <input type="checkbox" ${c.osm_confirmed ? 'checked' : ''} onchange="updateSyncState('${c.id}', 'osm_confirmed', this.checked ? 1 : 0, '${todayStr}')">
-                            <input type="text" class="sync-input" value="${escapeHtml(c.osm_id || '')}" placeholder="OSM ID" onchange="updateSyncState('${c.id}', 'osm_id', this.value)">
+                            <input type="text" class="sync-input" value="${escapeHtml(c.osm_id || '')}" placeholder="OSM ID" onchange="updateSyncId('${c.id}', 'osm', this.value)">
+                            <a id="osm_link_${c.id}" href="${getRapidEditorOsmUrl(c.osm_id, c.gps_lat, c.gps_lng)}" target="_blank" class="sync-link-icon" style="${c.osm_id || hasGps ? '' : 'visibility: hidden;'}" title="Open in RapidEditor.org (OSM)">↗</a>
                         </div>
-                        <div id="osm_date_${c.id}" class="sync-date" style="${c.osm_date && c.osm_confirmed ? '' : 'display:none;'}">✔ ${c.osm_date || ''}</div>
+                        <div id="osm_date_${c.id}" class="sync-date" style="${c.osm_date && c.osm_id ? '' : 'display:none;'}">✔ ${c.osm_date || ''}</div>
                     </td>
 
                     <!-- WikiTree -->
                     <td>
                         <div class="sync-box">
-                            <input type="checkbox" ${c.wikitree_confirmed ? 'checked' : ''} onchange="updateSyncState('${c.id}', 'wikitree_confirmed', this.checked ? 1 : 0, '${todayStr}')">
-                            <input type="text" class="sync-input" value="${escapeHtml(c.wikitree_id || '')}" placeholder="Category" onchange="updateSyncState('${c.id}', 'wikitree_id', this.value)">
+                            <input type="text" class="sync-input" value="${escapeHtml(c.wikitree_id || '')}" placeholder="Category" onchange="updateSyncId('${c.id}', 'wikitree', this.value)">
+                            <a id="wikitree_link_${c.id}" href="${getWikitreeUrl(c.wikitree_id)}" target="_blank" class="sync-link-icon" style="${c.wikitree_id ? '' : 'visibility: hidden;'}" title="Open in WikiTree">↗</a>
                         </div>
-                        <div id="wikitree_date_${c.id}" class="sync-date" style="${c.wikitree_date && c.wikitree_confirmed ? '' : 'display:none;'}">✔ ${c.wikitree_date || ''}</div>
-                    </td>
-
-<!-- Modal: QuickStatements Snippet Viewer -->
-<div id="qsModal" class="modal-overlay">
-    <div class="modal-card" style="width: 650px;">
-        <div class="modal-header">
-            <h3 id="qsModalTitle">⚡ QuickStatements V2 Snippet</h3>
-            <button class="close-btn" onclick="closeQsModal()">&times;</button>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-            <p style="margin:0; font-size:0.85rem; color: var(--text-secondary);" id="qsModalSubtitle">Copy or download QuickStatements for Wikidata import.</p>
-            <textarea id="qsTextarea" class="form-input" rows="10" style="font-family: monospace; font-size: 0.82rem; white-space: pre;" readonly></textarea>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                <button class="btn btn-amber" onclick="copyQsText()">📋 Copy to Clipboard</button>
-                <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn btn-secondary" onclick="closeQsModal()">Close</button>
-                    <button class="btn btn-green" onclick="downloadQsFile()">📥 Download .txt</button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-                    <!-- Notes / Source -->
-                    <td style="font-size: 0.8rem; color: var(--text-secondary); max-width: 180px;">
-                        ${c.source_doc ? `<strong style="color:#e2e8f0;">Doc:</strong> ${escapeHtml(c.source_doc)}<br>` : ''}
-                        ${c.notes ? escapeHtml(c.notes) : ''}
+                        <div id="wikitree_date_${c.id}" class="sync-date" style="${c.wikitree_date && c.wikitree_id ? '' : 'display:none;'}">✔ ${c.wikitree_date || ''}</div>
                     </td>
 
                     <!-- Actions -->
                     <td>
                         <div style="display: flex; gap: 0.35rem; align-items: center;">
                             ${isCustom ? 
-                                `<button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openLinkModal('${c.id}', '${escapeHtml(c.name)}')">🔗 Link FAG ID</button>` : 
+                                `<button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openLinkModal('${c.id}')">🔗 Link FG ID</button>` : 
                                 `<a href="/?cemetery=${c.id}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" title="Start memorial scrape for this cemetery">⚡ Scrape</a>`
                             }
-                            <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openCemeteryQuickStatements('${c.id}', '${escapeHtml(c.name)}')">⚡ QS</button>
+                            <button class="btn btn-purple" id="btn_match_${c.id}" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="autoMatchSingleCemetery('${c.id}')" title="Auto-find OSM ID & Wikidata QID for this single cemetery">🔍 Match</button>
+                            <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openCemeteryQuickStatements('${c.id}')" title="Generate Wikidata QuickStatements V2 snippet">⚡ QS</button>
+                            <button class="btn btn-green" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openWikiTreeModal('${c.id}')" title="Generate WikiTree Category Title & CategoryInfoBox Cemetery markup">🌳 WT</button>
                         </div>
                     </td>
                 </tr>
@@ -587,7 +957,9 @@
         const wikitreeCount = cemeteries.filter(c => c.wikitree_confirmed === 1).length;
 
         document.getElementById('kpiTotal').innerText = total;
-        document.getElementById('kpiCustom').innerText = custom;
+        if (document.getElementById('kpiCustom')) {
+            document.getElementById('kpiCustom').innerText = custom;
+        }
         document.getElementById('kpiFagBurials').innerText = fagBurials.toLocaleString();
         document.getElementById('kpiStashedBurials').innerText = stashedBurials.toLocaleString();
 
@@ -596,22 +968,36 @@
         document.getElementById('kpiWikitree').innerText = total ? `${Math.round((wikitreeCount / total) * 100)}%` : '0%';
     }
 
-    async function updateSyncState(cemeteryId, field, value, dateVal=null) {
+    async function updateSyncId(cemeteryId, platform, value) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const targetCem = currentCemeteries.find(c => c.id == cemeteryId);
+        
+        const idField = platform === 'wikidata' ? 'wikidata_qid' : `${platform}_id`;
+        const confirmedField = `${platform}_confirmed`;
+        const dateField = `${platform}_date`;
+
+        const val = value.trim();
         const fields = {};
-        fields[field] = value;
-        if (field.endsWith('_confirmed') && value === 1 && dateVal) {
-            const dateField = field.replace('_confirmed', '_date');
-            fields[dateField] = dateVal;
+        fields[idField] = val;
+
+        if (val) {
+            fields[confirmedField] = 1;
+            const oldId = targetCem ? targetCem[idField] : '';
+            const oldDate = targetCem ? targetCem[dateField] : '';
+            if (val !== oldId || !oldDate) {
+                fields[dateField] = todayStr;
+            } else {
+                fields[dateField] = oldDate;
+            }
+        } else {
+            fields[confirmedField] = 0;
+            fields[dateField] = '';
         }
 
-        // Update local memory state
-        const targetCem = currentCemeteries.find(c => c.id == cemeteryId);
         if (targetCem) {
-            targetCem[field] = value;
-            if (field.endsWith('_confirmed') && value === 1 && dateVal) {
-                const dateField = field.replace('_confirmed', '_date');
-                targetCem[dateField] = dateVal;
-            }
+            targetCem[idField] = fields[idField];
+            targetCem[confirmedField] = fields[confirmedField];
+            targetCem[dateField] = fields[dateField];
             updateKPIs(currentCemeteries);
         }
 
@@ -622,16 +1008,32 @@
                 body: JSON.stringify({ cemetery_id: cemeteryId, fields: fields })
             });
 
-            // Update in-place date element if confirmation checkbox toggled
-            if (field.endsWith('_confirmed')) {
-                const prefix = field.replace('_confirmed', '');
-                const dateEl = document.getElementById(`${prefix}_date_${cemeteryId}`);
-                if (dateEl) {
-                    if (value === 1 && dateVal) {
-                        dateEl.innerHTML = `✔ ${dateVal}`;
-                        dateEl.style.display = 'block';
+            const dateEl = document.getElementById(`${platform}_date_${cemeteryId}`);
+            if (dateEl) {
+                if (fields[confirmedField] === 1 && fields[dateField]) {
+                    dateEl.innerHTML = `✔ ${fields[dateField]}`;
+                    dateEl.style.display = 'block';
+                } else {
+                    dateEl.style.display = 'none';
+                }
+            }
+
+            const linkEl = document.getElementById(`${platform}_link_${cemeteryId}`);
+            if (linkEl) {
+                if (val) {
+                    let targetUrl = '#';
+                    if (platform === 'wikidata') targetUrl = getWikidataUrl(val);
+                    else if (platform === 'osm') targetUrl = getRapidEditorOsmUrl(val, targetCem ? targetCem.gps_lat : null, targetCem ? targetCem.gps_lng : null);
+                    else if (platform === 'wikitree') targetUrl = getWikitreeUrl(val);
+                    
+                    linkEl.href = targetUrl;
+                    linkEl.style.visibility = 'visible';
+                } else {
+                    if (platform === 'osm' && targetCem && targetCem.gps_lat && targetCem.gps_lng) {
+                        linkEl.href = getRapidEditorOsmUrl('', targetCem.gps_lat, targetCem.gps_lng);
+                        linkEl.style.visibility = 'visible';
                     } else {
-                        dateEl.style.display = 'none';
+                        linkEl.style.visibility = 'hidden';
                     }
                 }
             }
@@ -699,30 +1101,9 @@
 
     let currentQsCemeteryId = null;
 
-    function exportQuickStatements() {
-        const state = document.getElementById('stateInput').value.trim();
-        const county = document.getElementById('countyInput').value.trim();
-        currentQsCemeteryId = null;
-        document.getElementById('qsModalTitle').innerText = `⚡ QuickStatements V2: ${county || 'County'}`;
-        document.getElementById('qsModalSubtitle').innerText = `Wikidata QuickStatements commands for all cemeteries in ${county}, ${state}`;
-        document.getElementById('qsTextarea').value = 'Loading QuickStatements snippet...';
-        document.getElementById('qsModal').style.display = 'flex';
-
-        fetch(`/api/county/quickstatements?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}&format=json`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('qsTextarea').value = data.quickstatements;
-                } else {
-                    document.getElementById('qsTextarea').value = 'Failed to generate QuickStatements.';
-                }
-            })
-            .catch(() => {
-                document.getElementById('qsTextarea').value = 'Error generating QuickStatements.';
-            });
-    }
-
-    async function openCemeteryQuickStatements(cemeteryId, name) {
+    async function openCemeteryQuickStatements(cemeteryId) {
+        const targetCem = currentCemeteries.find(c => c.id == cemeteryId);
+        const name = targetCem ? (targetCem.name || `Cemetery ${cemeteryId}`) : `Cemetery ${cemeteryId}`;
         currentQsCemeteryId = cemeteryId;
         document.getElementById('qsModalTitle').innerText = `⚡ QuickStatements V2: ${name}`;
         document.getElementById('qsModalSubtitle').innerText = `Wikidata QuickStatements V2 commands for Cemetery ID ${cemeteryId}`;
@@ -756,10 +1137,6 @@
     function downloadQsFile() {
         if (currentQsCemeteryId) {
             window.location.href = `/api/county/quickstatements?cemetery_id=${encodeURIComponent(currentQsCemeteryId)}`;
-        } else {
-            const state = document.getElementById('stateInput').value.trim();
-            const county = document.getElementById('countyInput').value.trim();
-            window.location.href = `/api/county/quickstatements?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}`;
         }
     }
 
@@ -774,6 +1151,7 @@
     async function submitCustomCemetery() {
         const payload = {
             name: document.getElementById('custName').value.trim(),
+            nickname: document.getElementById('custNickname').value.trim(),
             state: document.getElementById('custState').value.trim(),
             county: document.getElementById('custCounty').value.trim(),
             location: document.getElementById('custLocation').value.trim(),
@@ -802,7 +1180,9 @@
         }
     }
 
-    function openLinkModal(customId, name) {
+    function openLinkModal(customId) {
+        const targetCem = currentCemeteries.find(c => c.id == customId);
+        const name = targetCem ? (targetCem.name || customId) : customId;
         document.getElementById('linkCustomId').value = customId;
         document.getElementById('linkModalSubtitle').innerText = `Enter the Find a Grave Cemetery ID for "${name}".`;
         document.getElementById('linkModal').style.display = 'flex';
@@ -830,6 +1210,220 @@
         } else {
             alert(data.error || 'Failed to link record.');
         }
+    }
+
+    let currentAutoMatches = [];
+
+    async function runAutoMatch() {
+        const state = document.getElementById('stateInput').value.trim();
+        const county = document.getElementById('countyInput').value.trim();
+        if (!state || !county) {
+            alert('Please select State and County first.');
+            return;
+        }
+
+        document.getElementById('autoMatchTitle').innerText = `🔍 Auto-Matching IDs for ${county}`;
+        document.getElementById('autoMatchSubtitle').innerText = `Scanning OpenStreetMap (Overpass) and Wikidata (SPARQL) for unmatched cemeteries...`;
+        document.getElementById('autoMatchList').innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 3rem;">Scanning OpenStreetMap and Wikidata for cemetery matches...</div>`;
+        document.getElementById('autoMatchSummary').innerText = '';
+        document.getElementById('btnAcceptAllMatches').style.display = 'none';
+        document.getElementById('autoMatchModal').style.display = 'flex';
+
+        try {
+            const res = await fetch('/api/county/automatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ state: state, county: county })
+            });
+            const data = await res.json();
+            currentAutoMatches = data.matches || [];
+            renderAutoMatches(currentAutoMatches);
+        } catch (e) {
+            console.error(e);
+            document.getElementById('autoMatchList').innerHTML = `<div style="text-align: center; color: var(--accent-red); padding: 2rem;">Error querying auto-match APIs.</div>`;
+        }
+    }
+
+    function closeAutoMatchModal() {
+        document.getElementById('autoMatchModal').style.display = 'none';
+    }
+
+    function renderAutoMatches(matches) {
+        const container = document.getElementById('autoMatchList');
+        if (!matches || matches.length === 0) {
+            container.innerHTML = `<div style="text-align: center; color: var(--text-secondary); padding: 3rem;">No new OSM or Wikidata matches found for cemeteries in this county.</div>`;
+            document.getElementById('autoMatchSummary').innerText = '0 matches found.';
+            return;
+        }
+
+        document.getElementById('btnAcceptAllMatches').style.display = 'inline-block';
+        document.getElementById('autoMatchSummary').innerText = `Found ${matches.length} candidate match${matches.length === 1 ? '' : 'es'}.`;
+
+        container.innerHTML = matches.map((m, idx) => `
+            <div style="background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <div style="font-weight: 600; font-size: 0.95rem; color: #f8fafc;">
+                        ${escapeHtml(m.cemetery_name)} <span style="font-size: 0.78rem; color: var(--text-secondary);">(ID ${m.cemetery_id})</span>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem; font-size: 0.82rem; margin-top: 0.2rem;">
+                        ${m.suggested_osm_id ? `<div><span style="color:#34d399; font-weight:600;">OSM ID:</span> ${m.suggested_osm_id} <small style="color:var(--text-secondary);">(${m.osm_reason})</small></div>` : ''}
+                        ${m.suggested_wikidata_qid ? `<div><span style="color:#60a5fa; font-weight:600;">Wikidata QID:</span> ${m.suggested_wikidata_qid} <small style="color:var(--text-secondary);">(${m.wikidata_reason})</small></div>` : ''}
+                    </div>
+                </div>
+                <button class="btn btn-green" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; flex-shrink: 0;" onclick="acceptSingleMatch(${idx})">Accept Match</button>
+            </div>
+        `).join('');
+    }
+
+    async function acceptSingleMatch(index) {
+        const item = currentAutoMatches[index];
+        if (!item) return;
+
+        try {
+            const res = await fetch('/api/county/apply_matches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matches: [item] })
+            });
+            const data = await res.json();
+            if (data.success) {
+                currentAutoMatches.splice(index, 1);
+                renderAutoMatches(currentAutoMatches);
+                loadCountyCemeteries(true);
+            }
+        } catch (e) {
+            alert('Failed to apply match.');
+        }
+    }
+
+    async function acceptAllMatches() {
+        if (!currentAutoMatches.length) return;
+
+        try {
+            const res = await fetch('/api/county/apply_matches', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matches: currentAutoMatches })
+            });
+            const data = await res.json();
+            if (data.success) {
+                closeAutoMatchModal();
+                loadCountyCemeteries(true);
+            }
+        } catch (e) {
+            alert('Failed to apply matches.');
+        }
+    }
+
+    async function autoMatchSingleCemetery(cId) {
+        const btn = document.getElementById(`btn_match_${cId}`);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerText = '⌛...';
+        }
+
+        try {
+            const res = await fetch(`/api/cemetery/automatch/${cId}`);
+            const data = await res.json();
+            if (data.success) {
+                let updatedAny = false;
+                let foundMatch = false;
+
+                if (data.suggested_wikidata_qid) {
+                    foundMatch = true;
+                    const wdInput = document.querySelector(`input[onchange*="'${cId}', 'wikidata'"]`);
+                    if (wdInput) {
+                        if (!wdInput.value || wdInput.value.trim() !== data.suggested_wikidata_qid) {
+                            wdInput.value = data.suggested_wikidata_qid;
+                            updateSyncId(cId, 'wikidata', data.suggested_wikidata_qid);
+                            updatedAny = true;
+                        }
+                    }
+                }
+                if (data.suggested_osm_id) {
+                    foundMatch = true;
+                    const osmInput = document.querySelector(`input[onchange*="'${cId}', 'osm'"]`);
+                    if (osmInput) {
+                        if (!osmInput.value || osmInput.value.trim() !== data.suggested_osm_id) {
+                            osmInput.value = data.suggested_osm_id;
+                            updateSyncId(cId, 'osm', data.suggested_osm_id);
+                            updatedAny = true;
+                        }
+                    }
+                }
+
+                if (btn) {
+                    if (updatedAny) {
+                        btn.innerText = '✔ Auto-Filled';
+                        btn.className = 'btn btn-green';
+                    } else if (foundMatch) {
+                        btn.innerText = '✔ Verified';
+                        btn.className = 'btn btn-green';
+                    } else {
+                        btn.innerText = '❌ No Match';
+                    }
+                }
+            } else {
+                if (btn) btn.innerText = '❌ Error';
+            }
+        } catch (e) {
+            console.error(e);
+            if (btn) btn.innerText = '❌ Error';
+        } finally {
+            setTimeout(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    if (btn.innerText.includes('Error') || btn.innerText.includes('No Match')) {
+                        btn.innerText = '🔍 Match';
+                        btn.className = 'btn btn-purple';
+                    }
+                }
+            }, 3000);
+        }
+    }
+
+    async function openWikiTreeModal(cId) {
+        const targetCem = currentCemeteries.find(c => c.id == cId);
+        const name = targetCem ? (targetCem.name || cId) : cId;
+        
+        document.getElementById('wtModalTitle').innerText = `🌳 WikiTree Category: ${name}`;
+        document.getElementById('wtCategoryTitleInput').value = 'Loading...';
+        document.getElementById('wtTextarea').value = 'Loading CategoryInfoBox Cemetery markup...';
+        document.getElementById('wtPageLink').href = '#';
+        document.getElementById('wikiTreeModal').style.display = 'flex';
+
+        try {
+            const res = await fetch(`/api/cemetery/wikitree_snippet/${cId}`);
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('wtCategoryTitleInput').value = data.category_title;
+                document.getElementById('wtTextarea').value = data.markup;
+                document.getElementById('wtPageLink').href = data.category_url;
+            } else {
+                document.getElementById('wtTextarea').value = 'Error generating WikiTree markup.';
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('wtTextarea').value = 'Failed to load WikiTree markup.';
+        }
+    }
+
+    function closeWikiTreeModal() {
+        document.getElementById('wikiTreeModal').style.display = 'none';
+    }
+
+    function copyWtTitle() {
+        const input = document.getElementById('wtCategoryTitleInput');
+        input.select();
+        navigator.clipboard.writeText(input.value);
+        alert('WikiTree Category Title copied to clipboard!');
+    }
+
+    function copyWtMarkup() {
+        const textarea = document.getElementById('wtTextarea');
+        textarea.select();
+        navigator.clipboard.writeText(textarea.value);
+        alert('CategoryInfoBox Cemetery markup copied to clipboard!');
     }
 
     function escapeHtml(str) {
