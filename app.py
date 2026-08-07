@@ -27,7 +27,10 @@ def log_gui(message):
     scraping_logs.append(log_line)
     if len(scraping_logs) > 500:
         scraping_logs.pop(0)
-    print(log_line)
+    try:
+        print(log_line)
+    except UnicodeEncodeError:
+        print(log_line.encode('ascii', errors='replace').decode('ascii'))
 
 # Patch toolbox to log to GUI
 def print_l_patched(string='', last='\n'):
@@ -1020,6 +1023,430 @@ def api_download_memorial_photos(memorial_id):
         return jsonify({'success': True, 'photos': photos_list})
     except Exception as e:
         return jsonify({'error': f"Failed to download photos: {str(e)}"}), 500
+
+# --- County Discovery & External Sync Endpoints ---
+
+county_scraper_status = {"running": False, "message": "Idle", "discovered": 0, "current_page": 0}
+
+def discover_county_cemeteries_worker(state, county, location_id=None):
+    global county_scraper_status
+    county_scraper_status = {"running": True, "message": f"Starting discovery for {county}, {state}...", "discovered": 0, "current_page": 0}
+    log_gui(f"🌐 [County Scraper] Starting cemetery discovery scan for {county}, {state}...")
+    
+    session = None
+    try:
+        from DrissionPage import ChromiumPage, ChromiumOptions
+        co = ChromiumOptions().auto_port()
+        co.set_argument('--headless=new')
+        co.set_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        co.set_argument('--blink-settings=imagesEnabled=false')
+        co.set_timeouts(base=15, page_load=15)
+        session = ChromiumPage(co)
+        
+        target_loc_id = location_id.strip() if location_id else None
+        
+        # Parse if full search URL was pasted
+        if target_loc_id and 'locationId=' in target_loc_id:
+            m = re.search(r'locationId=([^&]+)', target_loc_id)
+            if m:
+                target_loc_id = m.group(1)
+                
+        # Auto-detect locationId for Cabell County, WV if not provided
+        if not target_loc_id:
+            if state.lower().strip() in ('west virginia', 'wv') and 'cabell' in county.lower():
+                target_loc_id = 'county_3069'
+                
+        if target_loc_id:
+            log_gui(f"🌐 [County Scraper] Using locationId: {target_loc_id}")
+        else:
+            log_gui(f"🌐 [County Scraper] Resolving locationId for '{county}, {state}' via UI search...")
+            session.get('https://www.findagrave.com/cemetery/search')
+            time.sleep(3)
+            
+            loc_input = session.ele('#cemetery-loc') or session.ele('css:input[name="cemetery-loc"]')
+            if loc_input:
+                loc_input.input(f"{county}, {state}")
+                time.sleep(2.5)
+                try:
+                    session.actions.key_down('DOWN').key_up('DOWN').key_down('ENTER').key_up('ENTER')
+                    time.sleep(1.5)
+                except Exception:
+                    pass
+                
+                btn = session.ele('#cem-search-button') or session.ele('css:button[type="submit"]')
+                if btn:
+                    btn.click()
+                    time.sleep(4)
+                    m = re.search(r'locationId=([^&]+)', session.url)
+                    if m:
+                        target_loc_id = m.group(1)
+                        log_gui(f"🌐 [County Scraper] UI resolved locationId: {target_loc_id}")
+
+        loc_str = f"{county}, {state}, USA"
+        page = 1
+        max_pages = 100
+        total_discovered = 0
+        consecutive_empty_pages = 0
+        
+        while page <= max_pages:
+            msg = f"Fetching search page {page} (Harvested so far: {total_discovered})..."
+            county_scraper_status["current_page"] = page
+            county_scraper_status["message"] = msg
+            log_gui(f"🌐 [County Scraper] {msg}")
+            
+            if target_loc_id:
+                search_url = f"https://www.findagrave.com/cemetery/search?cemetery-name=&cemetery-loc={requests.utils.quote(loc_str)}&only-with-cemeteries=cemOnly&locationId={target_loc_id}&page={page}"
+            else:
+                search_url = f"https://www.findagrave.com/cemetery/search?cemetery-name=&cemetery-loc={requests.utils.quote(loc_str)}&only-with-cemeteries=cemOnly&page={page}"
+                
+            session.get(search_url)
+            
+            tries = 3
+            seen_page_ids = set()
+            soup = None
+            
+            while tries > 0:
+                time.sleep(2.0)
+                try:
+                    session.scroll.to_bottom()
+                except Exception:
+                    pass
+                    
+                html = session.html
+                soup = BeautifulSoup(html, 'html.parser')
+                
+                cem_links = soup.find_all('a', href=re.compile(r'/cemetery/\d+'))
+                if cem_links:
+                    for link in cem_links:
+                        href = link.get('href', '')
+                        m = re.search(r'/cemetery/(\d+)', href)
+                        if m:
+                            seen_page_ids.add(m.group(1))
+                    if seen_page_ids:
+                        break
+                tries -= 1
+                if tries > 0:
+                    log_gui(f"🌐 [County Scraper] Page {page} elements loading... retrying render (tries left: {tries})")
+            
+            if not seen_page_ids:
+                consecutive_empty_pages += 1
+                log_gui(f"🌐 [County Scraper] Warning: No cemetery links found on page {page} (Empty pages count: {consecutive_empty_pages}).")
+                if consecutive_empty_pages >= 2:
+                    log_gui(f"🌐 [County Scraper] Stopping scan after {consecutive_empty_pages} empty pages.")
+                    break
+            else:
+                consecutive_empty_pages = 0
+                
+            cem_links = soup.find_all('a', href=re.compile(r'/cemetery/\d+')) if soup else []
+            page_processed_ids = set()
+            page_new_count = 0
+            
+            for link in cem_links:
+                href = link.get('href', '')
+                m = re.search(r'/cemetery/(\d+)', href)
+                if not m:
+                    continue
+                cem_id = m.group(1)
+                if cem_id in page_processed_ids:
+                    continue
+                page_processed_ids.add(cem_id)
+                
+                card = link.find_parent(['div', 'li', 'tr', 'td']) or link.parent
+                card_text = card.get_text(separator=' ', strip=True) if card else ''
+                
+                name_val = link.text.strip() or f"Cemetery {cem_id}"
+                
+                burial_count = 0
+                count_match = re.search(r'([\d,]+)\s*(?:graves|burials|memorials)', card_text, re.IGNORECASE)
+                if count_match:
+                    try:
+                        burial_count = int(count_match.group(1).replace(',', ''))
+                    except ValueError:
+                        pass
+                        
+                gps_lat = None
+                gps_lng = None
+                gps_link = card.find('a', href=re.compile(r'destination=([0-9.-]+),([0-9.-]+)')) if card else None
+                if gps_link:
+                    g_match = re.search(r'destination=([0-9.-]+),([0-9.-]+)', gps_link.get('href'))
+                    if g_match:
+                        try:
+                            gps_lat = float(g_match.group(1))
+                            gps_lng = float(g_match.group(2))
+                        except ValueError:
+                            pass
+                            
+                c_loc_str = f"{county}, {state}, USA"
+                database.upsert_county_cemetery(
+                    cemetery_id=cem_id,
+                    name=name_val,
+                    location=c_loc_str,
+                    state=state,
+                    county=county,
+                    gps_lat=gps_lat,
+                    gps_lng=gps_lng,
+                    fag_burial_count=burial_count
+                )
+                total_discovered += 1
+                page_new_count += 1
+                
+            log_gui(f"🌐 [County Scraper] Page {page} complete: Processed {page_new_count} cemeteries (Total: {total_discovered}).")
+            county_scraper_status["discovered"] = total_discovered
+            page += 1
+            
+        county_scraper_status["running"] = False
+        county_scraper_status["message"] = f"Finished discovery. Total cemeteries harvested: {total_discovered}"
+        log_gui(f"🌐 [County Scraper] ✅ Discovery scan complete! Total cemeteries: {total_discovered}")
+    except Exception as e:
+        county_scraper_status["running"] = False
+        county_scraper_status["message"] = f"Error during county discovery: {e}"
+        log_gui(f"🌐 [County Scraper] ❌ Error during discovery: {e}")
+    finally:
+        if session:
+            try:
+                session.quit()
+            except:
+                pass
+
+@app.route('/county')
+def view_county():
+    return render_template('county.html')
+
+@app.route('/api/county/discover', methods=['POST'])
+def api_county_discover():
+    global county_scraper_status
+    if county_scraper_status.get("running"):
+        return jsonify({'error': 'County discovery scan is already running.'}), 400
+        
+    data = request.get_json() or {}
+    state = data.get('state', '').strip()
+    county = data.get('county', '').strip()
+    location_id = data.get('location_id', '').strip()
+    
+    if not state or not county:
+        return jsonify({'error': 'Please provide state and county.'}), 400
+        
+    t = threading.Thread(target=discover_county_cemeteries_worker, args=(state, county, location_id))
+    t.daemon = True
+    t.start()
+    return jsonify({'success': True, 'message': f"Discovery thread started for {county}, {state}."})
+
+@app.route('/api/county/discover_status')
+def api_county_discover_status():
+    return jsonify(county_scraper_status)
+
+@app.route('/api/county/list')
+def api_county_list():
+    state = request.args.get('state', '').strip()
+    county = request.args.get('county', '').strip()
+    cemeteries = database.get_county_cemeteries(state, county)
+    return jsonify({'cemeteries': cemeteries, 'count': len(cemeteries)})
+
+@app.route('/api/county/add_custom', methods=['POST'])
+def api_county_add_custom():
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    state = data.get('state', '').strip()
+    county = data.get('county', '').strip()
+    location = data.get('location', '').strip()
+    source_doc = data.get('source_doc', '').strip()
+    notes = data.get('notes', '').strip()
+    gps_lat = data.get('gps_lat')
+    gps_lng = data.get('gps_lng')
+    
+    if not name or not state or not county:
+        return jsonify({'error': 'Name, State, and County are required.'}), 400
+        
+    try:
+        gps_lat = float(gps_lat) if gps_lat is not None and str(gps_lat).strip() != '' else None
+        gps_lng = float(gps_lng) if gps_lng is not None and str(gps_lng).strip() != '' else None
+    except ValueError:
+        gps_lat, gps_lng = None, None
+        
+    cid = database.add_custom_cemetery(name, state, county, location, gps_lat, gps_lng, source_doc, notes)
+    return jsonify({'success': True, 'id': cid, 'message': 'Custom cemetery created successfully.'})
+
+@app.route('/api/county/link_fag', methods=['POST'])
+def api_county_link_fag():
+    data = request.get_json() or {}
+    custom_id = data.get('custom_id', '').strip()
+    fag_id = data.get('fag_id', '').strip()
+    
+    if not custom_id or not fag_id:
+        return jsonify({'error': 'Custom ID and Find a Grave ID are required.'}), 400
+        
+    success, msg = database.link_custom_cemetery_to_fag(custom_id, fag_id)
+    if success:
+        return jsonify({'success': True, 'message': msg})
+    else:
+        return jsonify({'error': msg}), 400
+
+@app.route('/api/county/update_sync', methods=['POST'])
+def api_county_update_sync():
+    data = request.get_json() or {}
+    cemetery_id = data.get('cemetery_id', '').strip()
+    if not cemetery_id:
+        return jsonify({'error': 'Cemetery ID is required.'}), 400
+        
+    field_dict = data.get('fields', {})
+    updated = database.update_cemetery_external_sync(cemetery_id, field_dict)
+    if updated:
+        return jsonify({'success': True, 'message': 'Sync state updated.'})
+    else:
+        return jsonify({'error': 'Failed to update sync state.'}), 400
+
+@app.route('/api/county/export_csv')
+def api_county_export_csv():
+    import csv
+    state = request.args.get('state', '').strip()
+    county = request.args.get('county', '').strip()
+    cemeteries = database.get_county_cemeteries(state, county)
+    
+    si = io.StringIO()
+    cw = csv.writer(si)
+    
+    headers = [
+        'Cemetery ID', 'Name', 'State', 'County', 'Location',
+        'FAG Burial Count', 'Stashed Burial Count', 'GPS Lat', 'GPS Lng',
+        'Is Historical/Custom', 'Source Documentation', 'FAG Added Date',
+        'Wikidata QID', 'Wikidata Confirmed', 'Wikidata Date',
+        'OSM ID', 'OSM Confirmed', 'OSM Date',
+        'WikiTree ID', 'WikiTree Confirmed', 'WikiTree Date', 'Notes'
+    ]
+    cw.writerow(headers)
+    
+    for c in cemeteries:
+        cw.writerow([
+            c.get('id', ''),
+            c.get('name', ''),
+            c.get('state', ''),
+            c.get('county', ''),
+            c.get('location', ''),
+            c.get('fag_burial_count', 0),
+            c.get('stashed_burial_count', 0),
+            c.get('gps_lat', ''),
+            c.get('gps_lng', ''),
+            'Yes' if c.get('is_custom') else 'No',
+            c.get('source_doc', ''),
+            c.get('fag_added_date', ''),
+            c.get('wikidata_qid', ''),
+            'Yes' if c.get('wikidata_confirmed') else 'No',
+            c.get('wikidata_date', ''),
+            c.get('osm_id', ''),
+            'Yes' if c.get('osm_confirmed') else 'No',
+            c.get('osm_date', ''),
+            c.get('wikitree_id', ''),
+            'Yes' if c.get('wikitree_confirmed') else 'No',
+            c.get('wikitree_date', ''),
+            c.get('notes', '')
+        ])
+        
+    output_str = si.getvalue()
+    filename = f"cemeteries_{county.lower().replace(' ', '_')}_{state.lower().replace(' ', '_')}.csv" if (county and state) else "county_cemeteries.csv"
+    
+    return send_file(
+        io.BytesIO(output_str.encode('utf-8')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=filename
+    )
+
+COUNTY_QIDS = {
+    "cabell county": "Q508535",
+    "cabell": "Q508535",
+    "kanawha county": "Q498704",
+    "kanawha": "Q498704",
+    "wayne county": "Q513220",
+    "wayne": "Q513220",
+    "mason county": "Q495697",
+    "mason": "Q495697",
+    "putnam county": "Q507421",
+    "putnam": "Q507421",
+    "lincoln county": "Q490074",
+    "lincoln": "Q490074",
+}
+
+@app.route('/api/county/quickstatements')
+def api_county_quickstatements():
+    state = request.args.get('state', '').strip()
+    county = request.args.get('county', '').strip()
+    cemetery_id = request.args.get('cemetery_id', '').strip()
+    fmt = request.args.get('format', '').strip()
+    
+    if cemetery_id:
+        cem = database.get_cemetery(cemetery_id)
+        cemeteries = [cem] if cem else []
+    else:
+        cemeteries = database.get_county_cemeteries(state, county)
+    
+    lines = []
+    for c in cemeteries:
+        if not c:
+            continue
+            
+        qid = (c.get('wikidata_qid') or '').strip().upper()
+        if qid and not qid.startswith('Q'):
+            qid = f"Q{qid}"
+            
+        subject = qid if qid else "LAST"
+        
+        if not qid:
+            lines.append("CREATE")
+            lines.append("LAST\tP31\tQ39614")  # Instance of: cemetery
+            name = c.get('name') or f"Cemetery {c.get('id')}"
+            lines.append(f'LAST\tLen\t"{name}"')
+            
+            c_county = c.get('county') or county
+            c_state = c.get('state') or state
+            desc_loc = f" in {c_county}, {c_state}" if (c_county or c_state) else ""
+            lines.append(f'LAST\tDen\t"cemetery{desc_loc}"')
+
+        # Find a Grave Cemetery ID (P2025)
+        if not c.get('is_custom') and c.get('id'):
+            lines.append(f'{subject}\tP2025\t"{c["id"]}"')
+            
+        # Located in administrative territorial entity (P131)
+        c_county_str = (c.get('county') or county or '').lower().strip()
+        county_qid = COUNTY_QIDS.get(c_county_str)
+        if county_qid:
+            lines.append(f'{subject}\tP131\t{county_qid}')
+            
+        # Coordinate Location (P625)
+        if c.get('gps_lat') is not None and c.get('gps_lng') is not None:
+            lines.append(f'{subject}\tP625\t@{c["gps_lat"]}/{c["gps_lng"]}')
+            
+        # OpenStreetMap Way ID (P10689) / Relation ID (P402) / Node ID (P11693)
+        osm = (c.get('osm_id') or '').strip()
+        if osm:
+            clean_osm = re.sub(r'^[^\d]+', '', osm)
+            if 'relation' in osm.lower():
+                lines.append(f'{subject}\tP402\t"{clean_osm}"')
+            elif 'node' in osm.lower():
+                lines.append(f'{subject}\tP11693\t"{clean_osm}"')
+            else:
+                lines.append(f'{subject}\tP10689\t"{clean_osm}"')
+                
+        # WikiTree Category ID (P7755)
+        wikitree = (c.get('wikitree_id') or '').strip()
+        if wikitree:
+            lines.append(f'{subject}\tP7755\t"{wikitree}"')
+            
+        lines.append("")
+        
+    qs_content = "\n".join(lines)
+    
+    if fmt == 'json':
+        return jsonify({'success': True, 'cemetery_id': cemetery_id, 'quickstatements': qs_content})
+        
+    filename = f"quickstatements_{cemetery_id}.txt" if cemetery_id else (f"quickstatements_{county.lower().replace(' ', '_')}.txt" if county else "quickstatements.txt")
+    
+    return send_file(
+        io.BytesIO(qs_content.encode('utf-8')),
+        mimetype='text/plain',
+        as_attachment=True,
+        download_name=filename
+    )
+
 
 if __name__ == '__main__':
     try:

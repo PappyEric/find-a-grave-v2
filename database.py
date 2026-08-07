@@ -33,10 +33,30 @@ def init_db():
         );
         """)
         
-        try:
-            cursor.execute("ALTER TABLE cemeteries ADD COLUMN burials_discovered INTEGER DEFAULT 0;")
-        except sqlite3.OperationalError:
-            pass
+        new_cols = [
+            ("state", "TEXT"),
+            ("county", "TEXT"),
+            ("fag_burial_count", "INTEGER DEFAULT 0"),
+            ("is_custom", "INTEGER DEFAULT 0"),
+            ("source_doc", "TEXT DEFAULT ''"),
+            ("fag_added_date", "TEXT DEFAULT ''"),
+            ("wikidata_qid", "TEXT DEFAULT ''"),
+            ("wikidata_confirmed", "INTEGER DEFAULT 0"),
+            ("wikidata_date", "TEXT DEFAULT ''"),
+            ("osm_id", "TEXT DEFAULT ''"),
+            ("osm_confirmed", "INTEGER DEFAULT 0"),
+            ("osm_date", "TEXT DEFAULT ''"),
+            ("wikitree_id", "TEXT DEFAULT ''"),
+            ("wikitree_confirmed", "INTEGER DEFAULT 0"),
+            ("wikitree_date", "TEXT DEFAULT ''"),
+            ("notes", "TEXT DEFAULT ''"),
+            ("burials_discovered", "INTEGER DEFAULT 0")
+        ]
+        for col_name, col_type in new_cols:
+            try:
+                cursor.execute(f"ALTER TABLE cemeteries ADD COLUMN {col_name} {col_type};")
+            except sqlite3.OperationalError:
+                pass
         
         # 2. Memorials table
         cursor.execute("""
@@ -157,6 +177,177 @@ def get_cemetery(cemetery_id):
         return dict(row) if row else None
     finally:
         conn.close()
+
+def parse_cemetery_text(raw_name, raw_location=None):
+    if not raw_name:
+        return "", "", raw_location or ""
+        
+    lines = [line.strip() for line in raw_name.split('\n') if line.strip()]
+    if not lines:
+        return "", "", raw_location or ""
+        
+    clean_name = lines[0]
+    nickname = ""
+    clean_loc = raw_location or ""
+    
+    aka_match = re.search(r'Also known as:\s*([^\n]+)', raw_name, re.IGNORECASE)
+    if aka_match:
+        nickname = aka_match.group(1).strip()
+        
+    if 'also known as' in clean_name.lower():
+        parts = re.split(r'also known as:?', clean_name, flags=re.IGNORECASE)
+        clean_name = parts[0].strip()
+        if len(parts) > 1 and not nickname:
+            nickname = parts[1].strip()
+            
+    clean_name = re.sub(r',\s*Cabell County.*$', '', clean_name, flags=re.IGNORECASE).strip()
+    clean_name = re.sub(r',\s*West Virginia.*$', '', clean_name, flags=re.IGNORECASE).strip()
+    
+    for line in lines[1:]:
+        if 'County' in line or 'West Virginia' in line:
+            clean_loc = line.strip()
+            break
+            
+    return clean_name, nickname, clean_loc
+
+def upsert_county_cemetery(cemetery_id, name, location, state=None, county=None, gps_lat=None, gps_lng=None, fag_burial_count=0):
+    clean_name, clean_nick, clean_loc = parse_cemetery_text(name, location)
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cemeteries (id, nickname, name, location, state, county, gps_lat, gps_lng, fag_burial_count, is_custom)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+            ON CONFLICT(id) DO UPDATE SET
+                nickname=CASE WHEN excluded.nickname != '' THEN excluded.nickname ELSE cemeteries.nickname END,
+                name=coalesce(excluded.name, name),
+                location=coalesce(excluded.location, location),
+                state=coalesce(excluded.state, state),
+                county=coalesce(excluded.county, county),
+                gps_lat=coalesce(excluded.gps_lat, gps_lat),
+                gps_lng=coalesce(excluded.gps_lng, gps_lng),
+                fag_burial_count=max(coalesce(excluded.fag_burial_count, 0), coalesce(fag_burial_count, 0));
+        """, (str(cemetery_id), clean_nick, clean_name, clean_loc, state, county, gps_lat, gps_lng, fag_burial_count))
+        conn.commit()
+    finally:
+        conn.close()
+
+def add_custom_cemetery(name, state, county, location="", gps_lat=None, gps_lng=None, source_doc="", notes=""):
+    import time
+    custom_id = f"HIST_{int(time.time() * 1000)}"
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cemeteries (id, nickname, name, location, state, county, gps_lat, gps_lng, is_custom, source_doc, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?);
+        """, (custom_id, name, name, location, state, county, gps_lat, gps_lng, source_doc, notes))
+        conn.commit()
+        return custom_id
+    finally:
+        conn.close()
+
+def link_custom_cemetery_to_fag(custom_id, fag_id):
+    import time
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        today_str = time.strftime('%Y-%m-%d')
+        cursor.execute("SELECT * FROM cemeteries WHERE id = ?;", (custom_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False, "Custom cemetery not found"
+        row_dict = dict(row)
+        
+        cursor.execute("SELECT id FROM cemeteries WHERE id = ?;", (str(fag_id),))
+        fag_row = cursor.fetchone()
+        
+        if fag_row:
+            cursor.execute("""
+                UPDATE cemeteries SET
+                    source_doc = coalesce(nullif(source_doc, ''), ?),
+                    fag_added_date = ?,
+                    notes = coalesce(notes || ' ', '') || ?
+                WHERE id = ?;
+            """, (row_dict.get('source_doc', ''), today_str, f"Linked from {custom_id}: {row_dict.get('notes', '')}", str(fag_id)))
+            cursor.execute("DELETE FROM cemeteries WHERE id = ?;", (custom_id,))
+        else:
+            cursor.execute("""
+                UPDATE cemeteries SET
+                    id = ?,
+                    is_custom = 0,
+                    fag_added_date = ?
+                WHERE id = ?;
+            """, (str(fag_id), today_str, custom_id))
+            
+        conn.commit()
+        return True, "Successfully linked to Find a Grave ID"
+    finally:
+        conn.close()
+
+def get_county_cemeteries(state=None, county=None):
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        query = """
+            SELECT c.*,
+                   (SELECT count(*) FROM memorials WHERE cemetery_id = c.id) as stashed_burial_count
+            FROM cemeteries c
+            WHERE 1=1
+        """
+        params = []
+        if state and state.strip():
+            query += " AND (c.state LIKE ? OR c.location LIKE ?)"
+            params.append(f"%{state.strip()}%")
+            params.append(f"%{state.strip()}%")
+        if county and county.strip():
+            query += " AND (c.county LIKE ? OR c.location LIKE ?)"
+            params.append(f"%{county.strip()}%")
+            params.append(f"%{county.strip()}%")
+            
+        query += " ORDER BY c.is_custom DESC, coalesce(c.name, c.id) ASC;"
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+def update_cemetery_external_sync(cemetery_id, field_dict):
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        allowed_fields = {
+            'wikidata_qid', 'wikidata_confirmed', 'wikidata_date',
+            'osm_id', 'osm_confirmed', 'osm_date',
+            'wikitree_id', 'wikitree_confirmed', 'wikitree_date',
+            'notes', 'source_doc'
+        }
+        set_clauses = []
+        params = []
+        for key, val in field_dict.items():
+            if key in allowed_fields:
+                set_clauses.append(f"{key} = ?")
+                params.append(val)
+        if set_clauses:
+            query = f"UPDATE cemeteries SET {', '.join(set_clauses)} WHERE id = ?;"
+            params.append(str(cemetery_id))
+            cursor.execute(query, params)
+            conn.commit()
+            return True
+        return False
+    finally:
+        conn.close()
+
+def get_unique_states_counties():
+    conn = get_db_conn()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT state, county FROM cemeteries WHERE state IS NOT NULL AND state != '';")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
 
 def delete_cemetery(cemetery_id):
     conn = get_db_conn()

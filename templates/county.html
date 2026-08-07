@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>County Cemetery Audit & Cross-Platform Sync - Find a Grave Tools</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 1550px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* Top Header Nav */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 0.85rem 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--text-primary);
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .nav-link.active {
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #60a5fa;
+        }
+
+        /* Header Card */
+        .header-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 1.5rem;
+            border-radius: 14px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-title h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .header-title p {
+            margin: 0.3rem 0 0 0;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .controls-form {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .form-input {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.55rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: opacity 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn:hover { opacity: 0.9; }
+        .btn-green { background: var(--accent-green); }
+        .btn-amber { background: var(--accent-amber); color: #1e293b; }
+        .btn-purple { background: var(--accent-purple); }
+        .btn-secondary { background: #334155; color: var(--text-primary); }
+
+        /* KPI Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 1rem;
+        }
+
+        .kpi-card {
+            background: var(--card-bg);
+            padding: 1.1rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .kpi-card .label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .kpi-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* Status Banner */
+        .status-banner {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid var(--accent-blue);
+            padding: 0.85rem 1.25rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            color: #93c5fd;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Table Card */
+        .table-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .table-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header h2 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.88rem;
+        }
+
+        th {
+            background: #0f172a;
+            color: var(--text-secondary);
+            padding: 0.85rem 1rem;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-green { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-yellow { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-purple { background: rgba(139, 92, 246, 0.15); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.3); }
+
+        .sync-box {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .sync-input {
+            width: 100px;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.3rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        .sync-date {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+
+        /* Modal styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .modal-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.5rem;
+            width: 500px;
+            max-width: 90%;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 { margin: 0; font-size: 1.2rem; }
+        .close-btn { background: none; border: none; color: var(--text-secondary); font-size: 1.4rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Top Navigation -->
+    <div class="top-nav">
+        <div style="font-weight: 700; font-size: 1.1rem; color: #60a5fa;">⚰️ Find a Grave Workstation</div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">📊 Main Dashboard</a>
+            <a href="/tree" class="nav-link">🌳 Family Tree</a>
+            <a href="/map" class="nav-link">🗺️ GIS Cemetery Map</a>
+            <a href="/analytics" class="nav-link">📈 Analytics</a>
+            <a href="/quality" class="nav-link">🔍 Data Quality</a>
+            <a href="/county" class="nav-link active">📍 County Audit</a>
+        </div>
+    </div>
+
+    <!-- Header Card & Search -->
+    <div class="header-card">
+        <div class="header-title">
+            <h1>📍 County Cemetery Discovery & Cross-Platform Hub</h1>
+            <p>Audit Find a Grave coverage, track custom historical cemeteries, and synchronize WikiData, OSM & WikiTree records.</p>
+        </div>
+        <div class="controls-form">
+            <input type="text" id="stateInput" class="form-input" placeholder="State (e.g. West Virginia)" value="West Virginia" style="width: 170px;">
+            <input type="text" id="countyInput" class="form-input" placeholder="County (e.g. Cabell County)" value="Cabell County" style="width: 170px;">
+            <input type="text" id="locationIdInput" class="form-input" placeholder="Location ID or URL (Optional)" value="" style="width: 220px;" title="Optional Find a Grave Location ID (e.g. county_3069) or search URL">
+            <button class="btn" onclick="loadCountyCemeteries()">🔍 View County</button>
+            <button class="btn btn-purple" onclick="startDiscovery()">🌐 Scrape FAG Search</button>
+            <button class="btn btn-green" onclick="exportCSV()">📥 Export CSV</button>
+            <button class="btn btn-amber" onclick="exportQuickStatements()">⚡ QuickStatements</button>
+        </div>
+    </div>
+
+    <!-- Live Status Banner -->
+    <div id="statusBanner" class="status-banner">
+        <span id="statusMessage">Scrape worker active...</span>
+        <span id="statusDetails" style="font-weight: 600;"></span>
+    </div>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <span class="label">Total County Cemeteries</span>
+            <span class="value" id="kpiTotal">0</span>
+        </div>
+        <div class="kpi-card">
+            <span class="label">Historical / Custom</span>
+            <span class="value" id="kpiCustom" style="color: var(--accent-purple);">0</span>
+        </div>
+        <div class="kpi-card">
+            <span class="label">FAG Listed Burials</span>
+            <span class="value" id="kpiFagBurials" style="color: #60a5fa;">0</span>
+        </div>
+        <div class="kpi-card">
+            <span class="label">Stashed Local Memorials</span>
+            <span class="value" id="kpiStashedBurials" style="color: var(--accent-green);">0</span>
+        </div>
+        <div class="kpi-card">
+            <span class="label">WikiData Confirmed</span>
+            <span class="value" id="kpiWikidata">0%</span>
+        </div>
+        <div class="kpi-card">
+            <span class="label">OSM Confirmed</span>
+            <span class="value" id="kpiOsm">0%</span>
+        </div>
+        <div class="kpi-card">
+            <span class="label">WikiTree Confirmed</span>
+            <span class="value" id="kpiWikitree">0%</span>
+        </div>
+    </div>
+
+    <!-- Main Data Table -->
+    <div class="table-card">
+        <div class="table-header">
+            <h2 id="tableTitle">Cemeteries List</h2>
+            <button class="btn btn-secondary" onclick="openCustomModal()">➕ Add Custom / Historical Cemetery</button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>FAG ID / Type</th>
+                        <th>Cemetery Name</th>
+                        <th>Location</th>
+                        <th>Burials (FAG / Local)</th>
+                        <th>WikiData (QID)</th>
+                        <th>OpenStreetMap (ID)</th>
+                        <th>WikiTree (Category/ID)</th>
+                        <th>Source / Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="cemeteryTableBody">
+                    <tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading cemeteries...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Add Custom Historical Cemetery -->
+<div id="customModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>➕ Add Custom / Historical Cemetery</h3>
+            <button class="close-btn" onclick="closeCustomModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <input type="text" id="custName" class="form-input" placeholder="Cemetery Name *">
+            <input type="text" id="custState" class="form-input" placeholder="State *" value="West Virginia">
+            <input type="text" id="custCounty" class="form-input" placeholder="County *" value="Cabell County">
+            <input type="text" id="custLocation" class="form-input" placeholder="City / Location Details">
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="number" step="any" id="custLat" class="form-input" placeholder="Latitude (optional)" style="flex:1;">
+                <input type="number" step="any" id="custLng" class="form-input" placeholder="Longitude (optional)" style="flex:1;">
+            </div>
+            <input type="text" id="custSource" class="form-input" placeholder="Source Documentation (e.g. 1883 County Atlas, Deed)">
+            <textarea id="custNotes" class="form-input" rows="3" placeholder="Research Notes"></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+                <button class="btn btn-secondary" onclick="closeCustomModal()">Cancel</button>
+                <button class="btn btn-green" onclick="submitCustomCemetery()">Save Cemetery</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Link Custom Cemetery to Find a Grave -->
+<div id="linkModal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>🔗 Link to Find a Grave ID</h3>
+            <button class="close-btn" onclick="closeLinkModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <p style="margin:0; font-size:0.9rem; color: var(--text-secondary);" id="linkModalSubtitle">Enter the official Find a Grave Cemetery ID assigned when created on Find a Grave.</p>
+            <input type="hidden" id="linkCustomId">
+            <input type="text" id="linkFagId" class="form-input" placeholder="Find a Grave Cemetery ID (e.g. 53841)">
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+                <button class="btn btn-secondary" onclick="closeLinkModal()">Cancel</button>
+                <button class="btn" onclick="submitLinkFag()">Link & Convert Record</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentCemeteries = [];
+    let pollInterval = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCountyCemeteries();
+    });
+
+    async function loadCountyCemeteries(preserveScroll = false) {
+        const scrollPos = window.scrollY;
+        const state = document.getElementById('stateInput').value.trim();
+        const county = document.getElementById('countyInput').value.trim();
+
+        document.getElementById('tableTitle').innerText = `Cemeteries in ${county || 'All Counties'}, ${state || 'All States'}`;
+        const tbody = document.getElementById('cemeteryTableBody');
+        if (!preserveScroll) {
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading...</td></tr>`;
+        }
+
+        try {
+            const res = await fetch(`/api/county/list?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}`);
+            const data = await res.json();
+            currentCemeteries = data.cemeteries || [];
+            renderTable(currentCemeteries);
+            updateKPIs(currentCemeteries);
+            if (preserveScroll) {
+                window.scrollTo(0, scrollPos);
+            }
+        } catch (e) {
+            console.error(e);
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--accent-red); padding: 2rem;">Error loading cemetery data.</td></tr>`;
+        }
+    }
+
+    function renderTable(cemeteries) {
+        const tbody = document.getElementById('cemeteryTableBody');
+        if (!cemeteries || cemeteries.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 2rem;">No cemeteries found in local DB for this county. Click <strong>"🌐 Scrape FAG Search"</strong> to discover them from Find a Grave, or add a custom historical entry.</td></tr>`;
+            return;
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        tbody.innerHTML = cemeteries.map(c => {
+            const isCustom = c.is_custom === 1;
+            const fagLink = !isCustom ? `<a href="https://www.findagrave.com/cemetery/${c.id}" target="_blank" style="color: #60a5fa; text-decoration: none; font-weight: 600;">${c.id}</a>` : `<span class="badge badge-purple">📜 Historical</span>`;
+            
+            return `
+                <tr>
+                    <td>${fagLink}</td>
+                    <td style="font-weight: 600;">${escapeHtml(c.name || 'Unnamed')}</td>
+                    <td style="color: var(--text-secondary); font-size: 0.82rem;">${escapeHtml(c.location || '')}</td>
+                    <td>
+                        <span style="color: #60a5fa; font-weight: 600;">${(c.fag_burial_count || 0).toLocaleString()}</span> / 
+                        <span style="color: var(--accent-green); font-weight: 600;">${(c.stashed_burial_count || 0).toLocaleString()}</span>
+                    </td>
+
+                    <!-- WikiData -->
+                    <td>
+                        <div class="sync-box">
+                            <input type="checkbox" ${c.wikidata_confirmed ? 'checked' : ''} onchange="updateSyncState('${c.id}', 'wikidata_confirmed', this.checked ? 1 : 0, '${todayStr}')">
+                            <input type="text" class="sync-input" value="${escapeHtml(c.wikidata_qid || '')}" placeholder="QID" onchange="updateSyncState('${c.id}', 'wikidata_qid', this.value)">
+                        </div>
+                        <div id="wikidata_date_${c.id}" class="sync-date" style="${c.wikidata_date && c.wikidata_confirmed ? '' : 'display:none;'}">✔ ${c.wikidata_date || ''}</div>
+                    </td>
+
+                    <!-- OpenStreetMap -->
+                    <td>
+                        <div class="sync-box">
+                            <input type="checkbox" ${c.osm_confirmed ? 'checked' : ''} onchange="updateSyncState('${c.id}', 'osm_confirmed', this.checked ? 1 : 0, '${todayStr}')">
+                            <input type="text" class="sync-input" value="${escapeHtml(c.osm_id || '')}" placeholder="OSM ID" onchange="updateSyncState('${c.id}', 'osm_id', this.value)">
+                        </div>
+                        <div id="osm_date_${c.id}" class="sync-date" style="${c.osm_date && c.osm_confirmed ? '' : 'display:none;'}">✔ ${c.osm_date || ''}</div>
+                    </td>
+
+                    <!-- WikiTree -->
+                    <td>
+                        <div class="sync-box">
+                            <input type="checkbox" ${c.wikitree_confirmed ? 'checked' : ''} onchange="updateSyncState('${c.id}', 'wikitree_confirmed', this.checked ? 1 : 0, '${todayStr}')">
+                            <input type="text" class="sync-input" value="${escapeHtml(c.wikitree_id || '')}" placeholder="Category" onchange="updateSyncState('${c.id}', 'wikitree_id', this.value)">
+                        </div>
+                        <div id="wikitree_date_${c.id}" class="sync-date" style="${c.wikitree_date && c.wikitree_confirmed ? '' : 'display:none;'}">✔ ${c.wikitree_date || ''}</div>
+                    </td>
+
+<!-- Modal: QuickStatements Snippet Viewer -->
+<div id="qsModal" class="modal-overlay">
+    <div class="modal-card" style="width: 650px;">
+        <div class="modal-header">
+            <h3 id="qsModalTitle">⚡ QuickStatements V2 Snippet</h3>
+            <button class="close-btn" onclick="closeQsModal()">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <p style="margin:0; font-size:0.85rem; color: var(--text-secondary);" id="qsModalSubtitle">Copy or download QuickStatements for Wikidata import.</p>
+            <textarea id="qsTextarea" class="form-input" rows="10" style="font-family: monospace; font-size: 0.82rem; white-space: pre;" readonly></textarea>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                <button class="btn btn-amber" onclick="copyQsText()">📋 Copy to Clipboard</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="closeQsModal()">Close</button>
+                    <button class="btn btn-green" onclick="downloadQsFile()">📥 Download .txt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+                    <!-- Notes / Source -->
+                    <td style="font-size: 0.8rem; color: var(--text-secondary); max-width: 180px;">
+                        ${c.source_doc ? `<strong style="color:#e2e8f0;">Doc:</strong> ${escapeHtml(c.source_doc)}<br>` : ''}
+                        ${c.notes ? escapeHtml(c.notes) : ''}
+                    </td>
+
+                    <!-- Actions -->
+                    <td>
+                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                            ${isCustom ? 
+                                `<button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openLinkModal('${c.id}', '${escapeHtml(c.name)}')">🔗 Link FAG ID</button>` : 
+                                `<a href="/?cemetery=${c.id}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" title="Start memorial scrape for this cemetery">⚡ Scrape</a>`
+                            }
+                            <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openCemeteryQuickStatements('${c.id}', '${escapeHtml(c.name)}')">⚡ QS</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function updateKPIs(cemeteries) {
+        const total = cemeteries.length;
+        const custom = cemeteries.filter(c => c.is_custom === 1).length;
+        const fagBurials = cemeteries.reduce((sum, c) => sum + (c.fag_burial_count || 0), 0);
+        const stashedBurials = cemeteries.reduce((sum, c) => sum + (c.stashed_burial_count || 0), 0);
+
+        const wikidataCount = cemeteries.filter(c => c.wikidata_confirmed === 1).length;
+        const osmCount = cemeteries.filter(c => c.osm_confirmed === 1).length;
+        const wikitreeCount = cemeteries.filter(c => c.wikitree_confirmed === 1).length;
+
+        document.getElementById('kpiTotal').innerText = total;
+        document.getElementById('kpiCustom').innerText = custom;
+        document.getElementById('kpiFagBurials').innerText = fagBurials.toLocaleString();
+        document.getElementById('kpiStashedBurials').innerText = stashedBurials.toLocaleString();
+
+        document.getElementById('kpiWikidata').innerText = total ? `${Math.round((wikidataCount / total) * 100)}%` : '0%';
+        document.getElementById('kpiOsm').innerText = total ? `${Math.round((osmCount / total) * 100)}%` : '0%';
+        document.getElementById('kpiWikitree').innerText = total ? `${Math.round((wikitreeCount / total) * 100)}%` : '0%';
+    }
+
+    async function updateSyncState(cemeteryId, field, value, dateVal=null) {
+        const fields = {};
+        fields[field] = value;
+        if (field.endsWith('_confirmed') && value === 1 && dateVal) {
+            const dateField = field.replace('_confirmed', '_date');
+            fields[dateField] = dateVal;
+        }
+
+        // Update local memory state
+        const targetCem = currentCemeteries.find(c => c.id == cemeteryId);
+        if (targetCem) {
+            targetCem[field] = value;
+            if (field.endsWith('_confirmed') && value === 1 && dateVal) {
+                const dateField = field.replace('_confirmed', '_date');
+                targetCem[dateField] = dateVal;
+            }
+            updateKPIs(currentCemeteries);
+        }
+
+        try {
+            await fetch('/api/county/update_sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cemetery_id: cemeteryId, fields: fields })
+            });
+
+            // Update in-place date element if confirmation checkbox toggled
+            if (field.endsWith('_confirmed')) {
+                const prefix = field.replace('_confirmed', '');
+                const dateEl = document.getElementById(`${prefix}_date_${cemeteryId}`);
+                if (dateEl) {
+                    if (value === 1 && dateVal) {
+                        dateEl.innerHTML = `✔ ${dateVal}`;
+                        dateEl.style.display = 'block';
+                    } else {
+                        dateEl.style.display = 'none';
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to update sync:', e);
+        }
+    }
+
+    async function startDiscovery() {
+        const state = document.getElementById('stateInput').value.trim();
+        const county = document.getElementById('countyInput').value.trim();
+        const locId = document.getElementById('locationIdInput').value.trim();
+
+        if (!state || !county) {
+            alert('Please enter state and county.');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/county/discover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ state: state, county: county, location_id: locId })
+            });
+            const data = await res.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            document.getElementById('statusBanner').style.display = 'flex';
+            pollStatus();
+            if (!pollInterval) {
+                pollInterval = setInterval(pollStatus, 2000);
+            }
+        } catch (e) {
+            alert('Error starting discovery scan.');
+        }
+    }
+
+    async function pollStatus() {
+        try {
+            const res = await fetch('/api/county/discover_status');
+            const data = await res.json();
+
+            document.getElementById('statusMessage').innerText = data.message || 'Processing...';
+            document.getElementById('statusDetails').innerText = `Harvested: ${data.discovered} | Page: ${data.current_page}`;
+
+            if (!data.running) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                setTimeout(() => {
+                    document.getElementById('statusBanner').style.display = 'none';
+                    loadCountyCemeteries();
+                }, 3000);
+            }
+        } catch (e) {}
+    }
+
+    function exportCSV() {
+        const state = document.getElementById('stateInput').value.trim();
+        const county = document.getElementById('countyInput').value.trim();
+        window.location.href = `/api/county/export_csv?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}`;
+    }
+
+    let currentQsCemeteryId = null;
+
+    function exportQuickStatements() {
+        const state = document.getElementById('stateInput').value.trim();
+        const county = document.getElementById('countyInput').value.trim();
+        currentQsCemeteryId = null;
+        document.getElementById('qsModalTitle').innerText = `⚡ QuickStatements V2: ${county || 'County'}`;
+        document.getElementById('qsModalSubtitle').innerText = `Wikidata QuickStatements commands for all cemeteries in ${county}, ${state}`;
+        document.getElementById('qsTextarea').value = 'Loading QuickStatements snippet...';
+        document.getElementById('qsModal').style.display = 'flex';
+
+        fetch(`/api/county/quickstatements?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}&format=json`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('qsTextarea').value = data.quickstatements;
+                } else {
+                    document.getElementById('qsTextarea').value = 'Failed to generate QuickStatements.';
+                }
+            })
+            .catch(() => {
+                document.getElementById('qsTextarea').value = 'Error generating QuickStatements.';
+            });
+    }
+
+    async function openCemeteryQuickStatements(cemeteryId, name) {
+        currentQsCemeteryId = cemeteryId;
+        document.getElementById('qsModalTitle').innerText = `⚡ QuickStatements V2: ${name}`;
+        document.getElementById('qsModalSubtitle').innerText = `Wikidata QuickStatements V2 commands for Cemetery ID ${cemeteryId}`;
+        document.getElementById('qsTextarea').value = 'Loading QuickStatements snippet...';
+        document.getElementById('qsModal').style.display = 'flex';
+
+        try {
+            const res = await fetch(`/api/county/quickstatements?cemetery_id=${encodeURIComponent(cemeteryId)}&format=json`);
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('qsTextarea').value = data.quickstatements;
+            } else {
+                document.getElementById('qsTextarea').value = 'Failed to generate QuickStatements.';
+            }
+        } catch (e) {
+            document.getElementById('qsTextarea').value = 'Error fetching QuickStatements.';
+        }
+    }
+
+    function closeQsModal() {
+        document.getElementById('qsModal').style.display = 'none';
+    }
+
+    function copyQsText() {
+        const textarea = document.getElementById('qsTextarea');
+        textarea.select();
+        document.execCommand('copy');
+        alert('QuickStatements copied to clipboard!');
+    }
+
+    function downloadQsFile() {
+        if (currentQsCemeteryId) {
+            window.location.href = `/api/county/quickstatements?cemetery_id=${encodeURIComponent(currentQsCemeteryId)}`;
+        } else {
+            const state = document.getElementById('stateInput').value.trim();
+            const county = document.getElementById('countyInput').value.trim();
+            window.location.href = `/api/county/quickstatements?state=${encodeURIComponent(state)}&county=${encodeURIComponent(county)}`;
+        }
+    }
+
+    // Modal controls
+    function openCustomModal() {
+        document.getElementById('custState').value = document.getElementById('stateInput').value;
+        document.getElementById('custCounty').value = document.getElementById('countyInput').value;
+        document.getElementById('customModal').style.display = 'flex';
+    }
+    function closeCustomModal() { document.getElementById('customModal').style.display = 'none'; }
+
+    async function submitCustomCemetery() {
+        const payload = {
+            name: document.getElementById('custName').value.trim(),
+            state: document.getElementById('custState').value.trim(),
+            county: document.getElementById('custCounty').value.trim(),
+            location: document.getElementById('custLocation').value.trim(),
+            gps_lat: document.getElementById('custLat').value.trim(),
+            gps_lng: document.getElementById('custLng').value.trim(),
+            source_doc: document.getElementById('custSource').value.trim(),
+            notes: document.getElementById('custNotes').value.trim()
+        };
+
+        if (!payload.name || !payload.state || !payload.county) {
+            alert('Name, State, and County are required.');
+            return;
+        }
+
+        const res = await fetch('/api/county/add_custom', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeCustomModal();
+            loadCountyCemeteries();
+        } else {
+            alert(data.error || 'Failed to create cemetery.');
+        }
+    }
+
+    function openLinkModal(customId, name) {
+        document.getElementById('linkCustomId').value = customId;
+        document.getElementById('linkModalSubtitle').innerText = `Enter the Find a Grave Cemetery ID for "${name}".`;
+        document.getElementById('linkModal').style.display = 'flex';
+    }
+    function closeLinkModal() { document.getElementById('linkModal').style.display = 'none'; }
+
+    async function submitLinkFag() {
+        const customId = document.getElementById('linkCustomId').value;
+        const fagId = document.getElementById('linkFagId').value.trim();
+
+        if (!fagId) {
+            alert('Please enter a Find a Grave ID.');
+            return;
+        }
+
+        const res = await fetch('/api/county/link_fag', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ custom_id: customId, fag_id: fagId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeLinkModal();
+            loadCountyCemeteries();
+        } else {
+            alert(data.error || 'Failed to link record.');
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+</script>
+
+</body>
+</html>

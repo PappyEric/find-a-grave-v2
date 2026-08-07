@@ -534,6 +534,7 @@
                 <a href="/map" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🗺️ GIS Cemetery Map</a>
                 <a href="/analytics" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📈 Analytics</a>
                 <a href="/quality" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">🔍 Data Quality</a>
+                <a href="/county" class="nav-item" style="text-decoration: none; color: var(--text-secondary); font-weight: 500; font-size: 0.9rem; padding: 0.45rem 1rem; border-radius: 8px;">📍 County Audit</a>
             </div>
             <div class="header-actions" style="display: flex; gap: 0.75rem;">
                 <button class="btn btn-secondary btn-small" id="exportGedcomBtn">🌳 Export GEDCOM</button>
@@ -611,9 +612,9 @@
                         <label class="checkbox-label"><input type="checkbox" id="groupBurial" checked disabled> Burial (Required)</label>
                         <label class="checkbox-label"><input type="checkbox" id="groupParent" checked> Parents</label>
                         <label class="checkbox-label"><input type="checkbox" id="groupSpouse" checked> Spouses</label>
-                        <label class="checkbox-label"><input type="checkbox" id="groupChild"> Children</label>
-                        <label class="checkbox-label"><input type="checkbox" id="groupSibling"> Siblings</label>
-                        <label class="checkbox-label"><input type="checkbox" id="groupHalfSibling"> Half-Siblings</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupChild" checked> Children</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupSibling" checked> Siblings</label>
+                        <label class="checkbox-label"><input type="checkbox" id="groupHalfSibling" checked> Half-Siblings</label>
                     </div>
                 </div>
 
@@ -956,9 +957,37 @@
         const downloadPhotosBtn = document.getElementById('downloadPhotosBtn');
 
         // Initial Load
-        window.addEventListener('DOMContentLoaded', () => {
-            loadCemeteries();
-            loadMemorials();
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadCemeteries();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetCemId = urlParams.get('cemetery') || urlParams.get('cemetery_id');
+            if (targetCemId) {
+                // Ensure target cemetery is added to database if not present
+                if (!cemeteries.some(c => c.id == targetCemId)) {
+                    try {
+                        await fetch('/api/cemeteries', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ id: targetCemId })
+                        });
+                        await loadCemeteries();
+                    } catch (e) {}
+                }
+                
+                if (filterCemSelect) {
+                    filterCemSelect.value = targetCemId;
+                    currentFilterCemetery = targetCemId;
+                }
+                if (targetCemSelect) {
+                    targetCemSelect.value = targetCemId;
+                }
+                
+                await loadMemorials();
+                triggerScrape(targetCemId);
+            } else {
+                await loadMemorials();
+            }
             startPollingScraper();
         });
 
