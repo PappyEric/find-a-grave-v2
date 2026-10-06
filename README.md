@@ -93,8 +93,9 @@ Every memorial's full name is parsed into 7 distinct columns:
 - **Suffix** (e.g. `Jr.`, `III`, `Sr.`)
 - **Nickname** (extracted from quote-wrapped regex matches, e.g. `“Skeet”`)
 
-### SQLite Performance Tuning & Connection Safety
+### SQLite Performance Tuning & Spatial Enablement
 
+- **OGC GeoPackage & Spatial R*Tree 2D Indexing**: Database (`stash/find_a_grave_spatial.gpkg`) features native GeoPackage binary Point geometries (`EPSG:4326`) and SQLite R*Tree virtual tables (`memorials_spatial_idx`, `cemeteries_spatial_idx`) with automatic synchronization triggers. Directly openable in QGIS and ArcGIS Pro as live spatial point layers, with sub-millisecond 2D bounding-box queries and nearby radius lookups across tens of thousands of GPS coordinates.
 - **WAL Mode**: Database runs in Write-Ahead Logging (`journal_mode=WAL; PRAGMA synchronous=NORMAL;`) enabling non-blocking concurrent reads and writes between Flask web views and background scraper threads.
 - **7 Performance Indexes**: Indexed on `cemetery_id`, `last_name`, `surname`, `gps_lat/lng`, `relationships`, and queue status.
 - **Memory Safety**: Uses `soup.decompose()` after HTML parsing to free DOM parse trees immediately from RAM.

@@ -44,6 +44,10 @@
             padding: 0.85rem 1.5rem;
             border-radius: 12px;
             border: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
         }
 
         .nav-links {
@@ -189,7 +193,6 @@
             background: var(--card-bg);
             border-radius: 12px;
             border: 1px solid var(--border-color);
-            overflow: hidden;
         }
 
         .table-header {
@@ -207,6 +210,8 @@
         }
 
         .table-wrapper {
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
             overflow-x: auto;
         }
 
@@ -220,16 +225,40 @@
         th {
             background: #0f172a;
             color: var(--text-secondary);
-            padding: 0.85rem 1rem;
+            padding: 0.75rem 0.6rem;
             font-weight: 600;
             border-bottom: 1px solid var(--border-color);
             white-space: nowrap;
         }
 
+        thead tr:first-child th {
+            position: sticky;
+            top: 0;
+            z-index: 30;
+            background: #0f172a;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        thead tr.filter-row th {
+            position: sticky;
+            top: 36px;
+            z-index: 29;
+            background: #1e293b;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
         td {
-            padding: 0.85rem 1rem;
+            padding: 0.65rem 0.6rem;
             border-bottom: 1px solid var(--border-color);
             vertical-align: middle;
+        }
+
+        .col-aka {
+            max-width: 160px;
+            width: 160px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         tr:hover td {
@@ -465,14 +494,14 @@
                     <tr>
                         <th class="sortable" onclick="handleSort('id')">FG ID / Type <span id="sort_icon_id" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('name')">Cemetery Name <span id="sort_icon_name" class="sort-icon">▲</span></th>
-                        <th class="sortable" onclick="handleSort('nickname')">Also Known As (AKA) <span id="sort_icon_nickname" class="sort-icon"></span></th>
+                        <th class="sortable col-aka" onclick="handleSort('nickname')" title="Also Known As (AKA)">AKA <span id="sort_icon_nickname" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('location')">Location <span id="sort_icon_location" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('gps')">GPS <span id="sort_icon_gps" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('burials')">Burials<br><small style="font-weight:normal; font-size:0.75rem;">(FG / Local)</small> <span id="sort_icon_burials" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('wikidata')">WikiData (QID) <span id="sort_icon_wikidata" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('osm')">OSM ID <span id="sort_icon_osm" class="sort-icon"></span></th>
                         <th class="sortable" onclick="handleSort('wikitree')">WikiTree (Category/ID) <span id="sort_icon_wikitree" class="sort-icon"></span></th>
-                        <th>Actions</th>
+                        <th style="min-width: 250px;">Actions</th>
                     </tr>
                     <tr class="filter-row">
                         <th>
@@ -485,7 +514,7 @@
                         <th>
                             <input type="text" id="filter_name" class="filter-input" placeholder="Search name..." oninput="applyFiltersAndSort()">
                         </th>
-                        <th>
+                        <th class="col-aka">
                             <input type="text" id="filter_aka" class="filter-input" placeholder="Search AKA..." oninput="applyFiltersAndSort()">
                         </th>
                         <th>
@@ -494,8 +523,8 @@
                         <th>
                             <select id="filter_gps" class="filter-input" onchange="applyFiltersAndSort()">
                                 <option value="all">All</option>
-                                <option value="yes">GPS (Yes)</option>
-                                <option value="no">GPS (No)</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
                             </select>
                         </th>
                         <th>
@@ -508,25 +537,25 @@
                         <th>
                             <select id="filter_wikidata" class="filter-input" onchange="applyFiltersAndSort()">
                                 <option value="all">All</option>
-                                <option value="yes">Wikidata (Yes)</option>
-                                <option value="no">Wikidata (No)</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
                             </select>
                         </th>
                         <th>
                             <select id="filter_osm" class="filter-input" onchange="applyFiltersAndSort()">
                                 <option value="all">All</option>
-                                <option value="yes">OSM (Yes)</option>
-                                <option value="no">OSM (No)</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
                             </select>
                         </th>
                         <th>
                             <select id="filter_wikitree" class="filter-input" onchange="applyFiltersAndSort()">
                                 <option value="all">All</option>
-                                <option value="yes">WikiTree (Yes)</option>
-                                <option value="no">WikiTree (No)</option>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
                             </select>
                         </th>
-                        <th>
+                        <th style="min-width: 250px;">
                             <button class="btn btn-secondary" style="padding: 0.2rem 0.4rem; font-size: 0.72rem; width: 100%;" onclick="clearFilters()" title="Reset all search filters">Reset Filters</button>
                         </th>
                     </tr>
@@ -892,7 +921,7 @@
                 <tr>
                     <td>${fagLink}</td>
                     <td style="font-weight: 600;">${escapeHtml(c.name || 'Unnamed')}</td>
-                    <td>
+                    <td class="col-aka" title="${hasRealAka ? escapeHtml(c.nickname) : ''}">
                         ${hasRealAka ? `<span style="color: #c084fc; font-weight: 500;">${escapeHtml(c.nickname)}</span>` : '<span style="color: #475569;">—</span>'}
                     </td>
                     <td style="color: var(--text-secondary); font-size: 0.82rem;">${escapeHtml(c.location || '')}</td>
@@ -905,7 +934,7 @@
                     <!-- WikiData -->
                     <td>
                         <div class="sync-box">
-                            <input type="text" class="sync-input" value="${escapeHtml(c.wikidata_qid || '')}" placeholder="QID" onchange="updateSyncId('${c.id}', 'wikidata', this.value)">
+                            <input type="text" id="sync_wikidata_input_${c.id}" class="sync-input" value="${escapeHtml(c.wikidata_qid || '')}" placeholder="QID" onchange="updateSyncId('${c.id}', 'wikidata', this.value)">
                             <a id="wikidata_link_${c.id}" href="${getWikidataUrl(c.wikidata_qid)}" target="_blank" class="sync-link-icon" style="${c.wikidata_qid ? '' : 'visibility: hidden;'}" title="Open in WikiData">↗</a>
                         </div>
                         <div id="wikidata_date_${c.id}" class="sync-date" style="${c.wikidata_date && c.wikidata_qid ? '' : 'display:none;'}">✔ ${c.wikidata_date || ''}</div>
@@ -914,7 +943,7 @@
                     <!-- OpenStreetMap -->
                     <td>
                         <div class="sync-box">
-                            <input type="text" class="sync-input" value="${escapeHtml(c.osm_id || '')}" placeholder="OSM ID" onchange="updateSyncId('${c.id}', 'osm', this.value)">
+                            <input type="text" id="sync_osm_input_${c.id}" class="sync-input" value="${escapeHtml(c.osm_id || '')}" placeholder="OSM ID" onchange="updateSyncId('${c.id}', 'osm', this.value)">
                             <a id="osm_link_${c.id}" href="${getRapidEditorOsmUrl(c.osm_id, c.gps_lat, c.gps_lng)}" target="_blank" class="sync-link-icon" style="${c.osm_id || hasGps ? '' : 'visibility: hidden;'}" title="Open in RapidEditor.org (OSM)">↗</a>
                         </div>
                         <div id="osm_date_${c.id}" class="sync-date" style="${c.osm_date && c.osm_id ? '' : 'display:none;'}">✔ ${c.osm_date || ''}</div>
@@ -923,15 +952,15 @@
                     <!-- WikiTree -->
                     <td>
                         <div class="sync-box">
-                            <input type="text" class="sync-input" value="${escapeHtml(c.wikitree_id || '')}" placeholder="Category" onchange="updateSyncId('${c.id}', 'wikitree', this.value)">
+                            <input type="text" id="sync_wikitree_input_${c.id}" class="sync-input" value="${escapeHtml(c.wikitree_id || '')}" placeholder="Category" onchange="updateSyncId('${c.id}', 'wikitree', this.value)">
                             <a id="wikitree_link_${c.id}" href="${getWikitreeUrl(c.wikitree_id)}" target="_blank" class="sync-link-icon" style="${c.wikitree_id ? '' : 'visibility: hidden;'}" title="Open in WikiTree">↗</a>
                         </div>
                         <div id="wikitree_date_${c.id}" class="sync-date" style="${c.wikitree_date && c.wikitree_id ? '' : 'display:none;'}">✔ ${c.wikitree_date || ''}</div>
                     </td>
 
                     <!-- Actions -->
-                    <td>
-                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                    <td style="min-width: 250px;">
+                        <div style="display: flex; gap: 0.35rem; align-items: center; white-space: nowrap;">
                             ${isCustom ? 
                                 `<button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" onclick="openLinkModal('${c.id}')">🔗 Link FG ID</button>` : 
                                 `<a href="/?cemetery=${c.id}" class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" title="Start memorial scrape for this cemetery">⚡ Scrape</a>`
@@ -1326,59 +1355,78 @@
             const res = await fetch(`/api/cemetery/automatch/${cId}`);
             const data = await res.json();
             if (data.success) {
-                let updatedAny = false;
-                let foundMatch = false;
+                let wdFilled = false;
+                let osmFilled = false;
 
-                if (data.suggested_wikidata_qid) {
-                    foundMatch = true;
-                    const wdInput = document.querySelector(`input[onchange*="'${cId}', 'wikidata'"]`);
-                    if (wdInput) {
-                        if (!wdInput.value || wdInput.value.trim() !== data.suggested_wikidata_qid) {
-                            wdInput.value = data.suggested_wikidata_qid;
-                            updateSyncId(cId, 'wikidata', data.suggested_wikidata_qid);
-                            updatedAny = true;
-                        }
+                const wdInput = document.getElementById(`sync_wikidata_input_${cId}`) || document.querySelector(`input[onchange*="'${cId}', 'wikidata'"]`);
+                const osmInput = document.getElementById(`sync_osm_input_${cId}`) || document.querySelector(`input[onchange*="'${cId}', 'osm'"]`);
+
+                const wdValBefore = (wdInput ? wdInput.value : '').trim();
+                const osmValBefore = (osmInput ? osmInput.value : '').trim();
+
+                if (data.suggested_wikidata_qid && wdInput) {
+                    if (!wdValBefore || wdValBefore !== data.suggested_wikidata_qid) {
+                        wdInput.value = data.suggested_wikidata_qid;
+                        await updateSyncId(cId, 'wikidata', data.suggested_wikidata_qid);
+                        wdFilled = true;
                     }
                 }
-                if (data.suggested_osm_id) {
-                    foundMatch = true;
-                    const osmInput = document.querySelector(`input[onchange*="'${cId}', 'osm'"]`);
-                    if (osmInput) {
-                        if (!osmInput.value || osmInput.value.trim() !== data.suggested_osm_id) {
-                            osmInput.value = data.suggested_osm_id;
-                            updateSyncId(cId, 'osm', data.suggested_osm_id);
-                            updatedAny = true;
-                        }
+
+                if (data.suggested_osm_id && osmInput) {
+                    if (!osmValBefore || osmValBefore !== data.suggested_osm_id) {
+                        osmInput.value = data.suggested_osm_id;
+                        await updateSyncId(cId, 'osm', data.suggested_osm_id);
+                        osmFilled = true;
                     }
                 }
+
+                const wdValAfter = (wdInput ? wdInput.value : '').trim();
+                const osmValAfter = (osmInput ? osmInput.value : '').trim();
 
                 if (btn) {
-                    if (updatedAny) {
+                    if (wdFilled || osmFilled) {
                         btn.innerText = '✔ Auto-Filled';
                         btn.className = 'btn btn-green';
-                    } else if (foundMatch) {
-                        btn.innerText = '✔ Verified';
+                        btn.title = `Auto-filled: ${wdFilled ? 'Wikidata (' + data.suggested_wikidata_qid + ') ' : ''}${osmFilled ? 'OSM (' + data.suggested_osm_id + ')' : ''}`;
+                    } else if (wdValAfter && osmValAfter) {
+                        btn.innerText = '✔ All Verified';
                         btn.className = 'btn btn-green';
+                        btn.title = 'Both OSM and Wikidata are confirmed';
+                    } else if (osmValAfter && !wdValAfter) {
+                        btn.innerText = '❌ No Wikidata';
+                        btn.className = 'btn btn-amber';
+                        btn.title = 'OSM ID is set, but no matching Wikidata QID was found';
+                    } else if (wdValAfter && !osmValAfter) {
+                        btn.innerText = '❌ No OSM';
+                        btn.className = 'btn btn-amber';
+                        btn.title = 'Wikidata is set, but no matching OSM entity was found';
                     } else {
                         btn.innerText = '❌ No Match';
+                        btn.className = 'btn btn-secondary';
+                        btn.title = 'No matches found on Wikidata or OpenStreetMap';
                     }
                 }
             } else {
-                if (btn) btn.innerText = '❌ Error';
+                if (btn) {
+                    btn.innerText = '❌ Error';
+                    btn.className = 'btn btn-amber';
+                }
             }
         } catch (e) {
             console.error(e);
-            if (btn) btn.innerText = '❌ Error';
+            if (btn) {
+                btn.innerText = '❌ Error';
+                btn.className = 'btn btn-amber';
+            }
         } finally {
             setTimeout(() => {
                 if (btn) {
                     btn.disabled = false;
-                    if (btn.innerText.includes('Error') || btn.innerText.includes('No Match')) {
-                        btn.innerText = '🔍 Match';
-                        btn.className = 'btn btn-purple';
-                    }
+                    btn.innerText = '🔍 Match';
+                    btn.className = 'btn btn-purple';
+                    btn.title = 'Auto-find OSM ID & Wikidata QID for this single cemetery';
                 }
-            }, 3000);
+            }, 3500);
         }
     }
 

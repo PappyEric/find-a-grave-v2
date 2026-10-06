@@ -93,6 +93,7 @@ def get_cemeteries_with_gps(conn=None):
 def find_nearby_burials(focus_memorial_id, radius_feet=100.0, cemetery_id=None, conn=None):
     """
     Finds all stashed burials with GPS coordinates within radius_feet of a focus grave.
+    Utilizes SQLite R*Tree spatial bounding-box indexing for sub-millisecond search performance.
     Returns focus grave info, radius, and sorted list of nearby burials with distance_feet.
     """
     close_conn = False
@@ -113,18 +114,34 @@ def find_nearby_burials(focus_memorial_id, radius_feet=100.0, cemetery_id=None, 
                 'focus_memorial': focus_mem
             }
 
-        # Fetch all GPS burials (optionally scoped to cemetery)
-        all_gps_burials = get_burials_with_gps(cemetery_id=cemetery_id, conn=conn)
+        radius_f = float(radius_feet)
+        margin = 1.05
+        delta_lat = (radius_f / EARTH_RADIUS_FEET) * (180.0 / math.pi) * margin
+        cos_lat = max(0.01, math.cos(math.radians(float(f_lat))))
+        delta_lng = delta_lat / cos_lat
+
+        min_lat = float(f_lat) - delta_lat
+        max_lat = float(f_lat) + delta_lat
+        min_lng = float(f_lng) - delta_lng
+        max_lng = float(f_lng) + delta_lng
+
+        # High-performance spatial R*Tree candidate pre-filtering
+        candidate_burials = database.get_memorials_in_bbox(
+            min_lat=min_lat, max_lat=max_lat,
+            min_lng=min_lng, max_lng=max_lng,
+            cemetery_id=cemetery_id,
+            conn=conn
+        )
 
         nearby = []
-        for b in all_gps_burials:
+        for b in candidate_burials:
             b_id = str(b['id'])
             # Exclude focus memorial itself from nearby list
             if b_id == str(focus_memorial_id):
                 continue
 
             dist = haversine_feet(f_lat, f_lng, b['gps_lat'], b['gps_lng'])
-            if dist is not None and dist <= float(radius_feet):
+            if dist is not None and dist <= radius_f:
                 b_copy = dict(b)
                 b_copy['distance_feet'] = dist
                 b_copy['distance_meters'] = round(dist * 0.3048, 2)
@@ -142,10 +159,52 @@ def find_nearby_burials(focus_memorial_id, radius_feet=100.0, cemetery_id=None, 
                 'gps_lng': f_lng,
                 'plot': focus_mem.get('plot')
             },
-            'radius_feet': float(radius_feet),
+            'radius_feet': radius_f,
             'nearby_burials': nearby,
             'count': len(nearby)
         }
+    finally:
+        if close_conn:
+            conn.close()
+
+def find_nearby_cemeteries(lat, lng, radius_feet=5280.0, conn=None):
+    """
+    Finds all stashed cemeteries with GPS coordinates within radius_feet of a given coordinate.
+    Uses SQLite R*Tree spatial indexing.
+    """
+    if lat is None or lng is None:
+        return []
+
+    close_conn = False
+    if conn is None:
+        conn = database.get_db_conn()
+        close_conn = True
+
+    try:
+        radius_f = float(radius_feet)
+        margin = 1.05
+        delta_lat = (radius_f / EARTH_RADIUS_FEET) * (180.0 / math.pi) * margin
+        cos_lat = max(0.01, math.cos(math.radians(float(lat))))
+        delta_lng = delta_lat / cos_lat
+
+        min_lat = float(lat) - delta_lat
+        max_lat = float(lat) + delta_lat
+        min_lng = float(lng) - delta_lng
+        max_lng = float(lng) + delta_lng
+
+        candidates = database.get_cemeteries_in_bbox(min_lat, max_lat, min_lng, max_lng, conn=conn)
+        results = []
+        for c in candidates:
+            dist = haversine_feet(lat, lng, c['gps_lat'], c['gps_lng'])
+            if dist is not None and dist <= radius_f:
+                c_copy = dict(c)
+                c_copy['distance_feet'] = dist
+                c_copy['distance_meters'] = round(dist * 0.3048, 2)
+                c_copy['distance_miles'] = round(dist / 5280.0, 2)
+                results.append(c_copy)
+
+        results.sort(key=lambda x: x['distance_feet'])
+        return results
     finally:
         if close_conn:
             conn.close()

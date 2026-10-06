@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import gedcom_exporter
+import database
 
 class TestGedcomExport(unittest.TestCase):
 
@@ -97,7 +98,7 @@ class TestGedcomExport(unittest.TestCase):
 
     def test_database_export_run(self):
         # Test database export functions against actual DB if stashed records exist
-        db_path = 'stash/find_a_grave_v2.db'
+        db_path = database.DB_PATH
         if os.path.exists(db_path):
             conn = sqlite3.connect(db_path, timeout=30.0)
             cursor = conn.cursor()
@@ -115,7 +116,7 @@ class TestGedcomExport(unittest.TestCase):
 
             conn2 = sqlite3.connect(db_path, timeout=30.0)
             cursor2 = conn2.cursor()
-            cursor2.execute("SELECT cemetery_id FROM memorials WHERE cemetery_id IS NOT NULL LIMIT 1;")
+            cursor2.execute("SELECT cemetery_id FROM memorials WHERE cemetery_id IS NOT NULL AND cemetery_id != '' LIMIT 1;")
             cem_row = cursor2.fetchone()
             conn2.close()
 

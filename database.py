@@ -4,7 +4,28 @@ import re
 import xlsxwriter
 from urllib.parse import unquote
 
-DB_PATH = 'stash/find_a_grave_v2.db'
+import struct
+
+DB_PATH = 'stash/find_a_grave_spatial.gpkg'
+GPKG_PATH = 'stash/find_a_grave_spatial.gpkg'
+
+def make_gpkg_point(lng, lat):
+    """
+    Encodes (lng, lat) into an OGC GeoPackage standard binary Point geometry (EPSG:4326).
+    Header (8 bytes) + WKB Point (21 bytes) = 29 bytes.
+    Recognized natively by QGIS and ArcGIS as vector points.
+    """
+    if lng is None or lat is None:
+        return None
+    try:
+        lng_f, lat_f = float(lng), float(lat)
+        if lng_f == 0 and lat_f == 0:
+            return None
+        header = struct.pack('<2sBB i', b'GP', 0, 1, 4326)
+        wkb = struct.pack('<B I d d', 1, 1, lng_f, lat_f)
+        return header + wkb
+    except Exception:
+        return None
 
 def get_db_conn():
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -12,6 +33,7 @@ def get_db_conn():
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("PRAGMA cache_size=-64000;")  # 64MB cache
     conn.row_factory = sqlite3.Row
+    conn.create_function('gpkg_point', 2, make_gpkg_point)
     return conn
 
 def init_db():
@@ -20,7 +42,61 @@ def init_db():
     try:
         cursor = conn.cursor()
         
-        # 1. Cemeteries table
+        # 1. GeoPackage Application ID & Pragma
+        cursor.execute("PRAGMA application_id = 1196444487;")  # 'GPKG'
+        cursor.execute("PRAGMA user_version = 10300;")          # GeoPackage 1.3
+        
+        # 2. GeoPackage Metadata Tables (for QGIS & ArcGIS Point layer support)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS gpkg_spatial_ref_sys (
+            srs_name TEXT NOT NULL,
+            srs_id INTEGER NOT NULL PRIMARY KEY,
+            organization TEXT NOT NULL,
+            organization_coordsys_id INTEGER NOT NULL,
+            definition TEXT NOT NULL,
+            description TEXT
+        );
+        """)
+        
+        cursor.execute("""
+        INSERT OR IGNORE INTO gpkg_spatial_ref_sys (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
+        VALUES 
+        ('WGS 84 geodetic', 4326, 'EPSG', 4326, 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","6326"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]', 'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid'),
+        ('Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined cartesian coordinate reference system'),
+        ('Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system');
+        """)
+        
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS gpkg_contents (
+            table_name TEXT NOT NULL PRIMARY KEY,
+            data_type TEXT NOT NULL,
+            identifier TEXT UNIQUE,
+            description TEXT DEFAULT '',
+            last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            min_x DOUBLE,
+            min_y DOUBLE,
+            max_x DOUBLE,
+            max_y DOUBLE,
+            srs_id INTEGER,
+            CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+        );
+        """)
+        
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS gpkg_geometry_columns (
+            table_name TEXT NOT NULL,
+            column_name TEXT NOT NULL,
+            geometry_type_name TEXT NOT NULL,
+            srs_id INTEGER NOT NULL,
+            z TINYINT NOT NULL,
+            m TINYINT NOT NULL,
+            CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
+            CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
+            CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+        );
+        """)
+
+        # 3. Cemeteries table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS cemeteries (
             id TEXT PRIMARY KEY,
@@ -29,7 +105,8 @@ def init_db():
             location TEXT,
             gps_lat REAL,
             gps_lng REAL,
-            burials_discovered INTEGER DEFAULT 0
+            burials_discovered INTEGER DEFAULT 0,
+            geom BLOB
         );
         """)
         
@@ -50,7 +127,8 @@ def init_db():
             ("wikitree_confirmed", "INTEGER DEFAULT 0"),
             ("wikitree_date", "TEXT DEFAULT ''"),
             ("notes", "TEXT DEFAULT ''"),
-            ("burials_discovered", "INTEGER DEFAULT 0")
+            ("burials_discovered", "INTEGER DEFAULT 0"),
+            ("geom", "BLOB")
         ]
         for col_name, col_type in new_cols:
             try:
@@ -58,7 +136,7 @@ def init_db():
             except sqlite3.OperationalError:
                 pass
         
-        # 2. Memorials table
+        # 4. Memorials table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS memorials (
             id TEXT PRIMARY KEY,
@@ -86,11 +164,27 @@ def init_db():
             gravesite_details TEXT,
             url TEXT,
             stashed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            geom BLOB,
             FOREIGN KEY (cemetery_id) REFERENCES cemeteries (id) ON DELETE CASCADE
         );
         """)
         
-        # 3. Relationships table
+        try:
+            cursor.execute("ALTER TABLE memorials ADD COLUMN geom BLOB;")
+        except sqlite3.OperationalError:
+            pass
+
+        # Register GeoPackage Feature Layers
+        cursor.execute("INSERT OR REPLACE INTO gpkg_geometry_columns VALUES ('cemeteries', 'geom', 'POINT', 4326, 0, 0);")
+        cursor.execute("INSERT OR REPLACE INTO gpkg_geometry_columns VALUES ('memorials', 'geom', 'POINT', 4326, 0, 0);")
+        cursor.execute("""
+        INSERT OR REPLACE INTO gpkg_contents (table_name, data_type, identifier, description, last_change, srs_id)
+        VALUES 
+        ('cemeteries', 'features', 'cemeteries', 'Find a Grave Cemeteries Point Layer', datetime('now'), 4326),
+        ('memorials', 'features', 'memorials', 'Find a Grave Memorials Point Layer', datetime('now'), 4326);
+        """)
+
+        # 5. Relationships table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS relationships (
             from_memorial_id TEXT,
@@ -101,7 +195,7 @@ def init_db():
         );
         """)
         
-        # 4. Download Queue table
+        # 6. Download Queue table
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS download_queue (
             url TEXT PRIMARY KEY,
@@ -125,7 +219,7 @@ def init_db():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_relationships_from_type ON relationships(from_memorial_id, relationship_type);")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_download_queue_cem_status ON download_queue(cemetery_id, status);")
         
-        # 5. Place QIDs Cache table for Wikidata QuickStatements
+        # 7. Place QIDs Cache table for Wikidata QuickStatements
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS place_qids (
             place_name TEXT PRIMARY KEY,
@@ -133,11 +227,252 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         """)
+
+        # 8. Spatial R*Tree Virtual Tables
+        cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS memorials_spatial_idx USING rtree(
+            id,              -- matches memorials.rowid
+            min_lng, max_lng,
+            min_lat, max_lat
+        );
+        """)
+        
+        cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS cemeteries_spatial_idx USING rtree(
+            id,              -- matches cemeteries.rowid
+            min_lng, max_lng,
+            min_lat, max_lat
+        );
+        """)
+        
+        # 9. Spatial Auto-Sync Triggers for Memorials (Maintains both R*Tree and geom BLOB)
+        cursor.execute("DROP TRIGGER IF EXISTS trg_memorials_spatial_insert;")
+        cursor.execute("""
+        CREATE TRIGGER trg_memorials_spatial_insert
+        AFTER INSERT ON memorials
+        WHEN NEW.gps_lat IS NOT NULL AND NEW.gps_lng IS NOT NULL AND NEW.gps_lat != 0 AND NEW.gps_lng != 0
+        BEGIN
+            INSERT OR REPLACE INTO memorials_spatial_idx (id, min_lng, max_lng, min_lat, max_lat)
+            VALUES (NEW.rowid, NEW.gps_lng, NEW.gps_lng, NEW.gps_lat, NEW.gps_lat);
+            UPDATE memorials SET geom = gpkg_point(NEW.gps_lng, NEW.gps_lat) WHERE rowid = NEW.rowid;
+        END;
+        """)
+        
+        cursor.execute("DROP TRIGGER IF EXISTS trg_memorials_spatial_update;")
+        cursor.execute("""
+        CREATE TRIGGER trg_memorials_spatial_update
+        AFTER UPDATE OF gps_lat, gps_lng ON memorials
+        BEGIN
+            DELETE FROM memorials_spatial_idx WHERE id = OLD.rowid;
+            INSERT INTO memorials_spatial_idx (id, min_lng, max_lng, min_lat, max_lat)
+            SELECT NEW.rowid, NEW.gps_lng, NEW.gps_lng, NEW.gps_lat, NEW.gps_lat
+            WHERE NEW.gps_lat IS NOT NULL AND NEW.gps_lng IS NOT NULL AND NEW.gps_lat != 0 AND NEW.gps_lng != 0;
+            UPDATE memorials SET geom = gpkg_point(NEW.gps_lng, NEW.gps_lat) WHERE rowid = NEW.rowid;
+        END;
+        """)
+        
+        cursor.execute("DROP TRIGGER IF EXISTS trg_memorials_spatial_delete;")
+        cursor.execute("""
+        CREATE TRIGGER trg_memorials_spatial_delete
+        AFTER DELETE ON memorials
+        BEGIN
+            DELETE FROM memorials_spatial_idx WHERE id = OLD.rowid;
+        END;
+        """)
+        
+        # 10. Spatial Auto-Sync Triggers for Cemeteries (Maintains both R*Tree and geom BLOB)
+        cursor.execute("DROP TRIGGER IF EXISTS trg_cemeteries_spatial_insert;")
+        cursor.execute("""
+        CREATE TRIGGER trg_cemeteries_spatial_insert
+        AFTER INSERT ON cemeteries
+        WHEN NEW.gps_lat IS NOT NULL AND NEW.gps_lng IS NOT NULL AND NEW.gps_lat != 0 AND NEW.gps_lng != 0
+        BEGIN
+            INSERT OR REPLACE INTO cemeteries_spatial_idx (id, min_lng, max_lng, min_lat, max_lat)
+            VALUES (NEW.rowid, NEW.gps_lng, NEW.gps_lng, NEW.gps_lat, NEW.gps_lat);
+            UPDATE cemeteries SET geom = gpkg_point(NEW.gps_lng, NEW.gps_lat) WHERE rowid = NEW.rowid;
+        END;
+        """)
+        
+        cursor.execute("DROP TRIGGER IF EXISTS trg_cemeteries_spatial_update;")
+        cursor.execute("""
+        CREATE TRIGGER trg_cemeteries_spatial_update
+        AFTER UPDATE OF gps_lat, gps_lng ON cemeteries
+        BEGIN
+            DELETE FROM cemeteries_spatial_idx WHERE id = OLD.rowid;
+            INSERT INTO cemeteries_spatial_idx (id, min_lng, max_lng, min_lat, max_lat)
+            SELECT NEW.rowid, NEW.gps_lng, NEW.gps_lng, NEW.gps_lat, NEW.gps_lat
+            WHERE NEW.gps_lat IS NOT NULL AND NEW.gps_lng IS NOT NULL AND NEW.gps_lat != 0 AND NEW.gps_lng != 0;
+            UPDATE cemeteries SET geom = gpkg_point(NEW.gps_lng, NEW.gps_lat) WHERE rowid = NEW.rowid;
+        END;
+        """)
+        
+        cursor.execute("DROP TRIGGER IF EXISTS trg_cemeteries_spatial_delete;")
+        cursor.execute("""
+        CREATE TRIGGER trg_cemeteries_spatial_delete
+        AFTER DELETE ON cemeteries
+        BEGIN
+            DELETE FROM cemeteries_spatial_idx WHERE id = OLD.rowid;
+        END;
+        """)
         
         conn.commit()
         seed_place_qids()
     finally:
         conn.close()
+
+def get_memorials_in_bbox(min_lat, max_lat, min_lng, max_lng, cemetery_id=None, conn=None):
+    """
+    Fast 2D spatial bounding box query using the SQLite R*Tree spatial index.
+    Returns list of memorial dicts with cemetery details within the coordinate bounds.
+    """
+    close_conn = False
+    if conn is None:
+        conn = get_db_conn()
+        close_conn = True
+        
+    try:
+        cursor = conn.cursor()
+        sql = """
+            SELECT m.*, c.name as cemetery_name, c.location as cemetery_location
+            FROM memorials m
+            JOIN memorials_spatial_idx s ON m.rowid = s.id
+            LEFT JOIN cemeteries c ON m.cemetery_id = c.id
+            WHERE s.min_lng >= ? AND s.max_lng <= ?
+              AND s.min_lat >= ? AND s.max_lat <= ?
+        """
+        params = [float(min_lng), float(max_lng), float(min_lat), float(max_lat)]
+        
+        if cemetery_id and str(cemetery_id).lower() != 'all':
+            sql += " AND m.cemetery_id = ?"
+            params.append(str(cemetery_id))
+            
+        sql += " ORDER BY m.surname, m.name;"
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    except sqlite3.OperationalError:
+        # Fallback if spatial table is not available
+        cursor = conn.cursor()
+        sql = """
+            SELECT m.*, c.name as cemetery_name, c.location as cemetery_location
+            FROM memorials m
+            LEFT JOIN cemeteries c ON m.cemetery_id = c.id
+            WHERE m.gps_lat BETWEEN ? AND ?
+              AND m.gps_lng BETWEEN ? AND ?
+        """
+        params = [float(min_lat), float(max_lat), float(min_lng), float(max_lng)]
+        if cemetery_id and str(cemetery_id).lower() != 'all':
+            sql += " AND m.cemetery_id = ?"
+            params.append(str(cemetery_id))
+        cursor.execute(sql, params)
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        if close_conn:
+            conn.close()
+
+def get_cemeteries_in_bbox(min_lat, max_lat, min_lng, max_lng, conn=None):
+    """
+    Fast 2D spatial bounding box query for cemeteries using SQLite R*Tree spatial index.
+    """
+    close_conn = False
+    if conn is None:
+        conn = get_db_conn()
+        close_conn = True
+        
+    try:
+        cursor = conn.cursor()
+        sql = """
+            SELECT c.*
+            FROM cemeteries c
+            JOIN cemeteries_spatial_idx s ON c.rowid = s.id
+            WHERE s.min_lng >= ? AND s.max_lng <= ?
+              AND s.min_lat >= ? AND s.max_lat <= ?
+            ORDER BY c.name;
+        """
+        cursor.execute(sql, (float(min_lng), float(max_lng), float(min_lat), float(max_lat)))
+        return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.OperationalError:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM cemeteries
+            WHERE gps_lat BETWEEN ? AND ?
+              AND gps_lng BETWEEN ? AND ?
+            ORDER BY name;
+        """, (float(min_lat), float(max_lat), float(min_lng), float(max_lng)))
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        if close_conn:
+            conn.close()
+
+def rebuild_spatial_indexes(conn=None):
+    """
+    Rebuilds and re-populates the spatial R*Tree virtual tables and GeoPackage binary Point geometries
+    for all records with GPS coordinates.
+    """
+    close_conn = False
+    if conn is None:
+        conn = get_db_conn()
+        close_conn = True
+        
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM memorials_spatial_idx;")
+        cursor.execute("DELETE FROM cemeteries_spatial_idx;")
+        
+        cursor.execute("""
+        INSERT INTO memorials_spatial_idx (id, min_lng, max_lng, min_lat, max_lat)
+        SELECT rowid, gps_lng, gps_lng, gps_lat, gps_lat
+        FROM memorials
+        WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND gps_lat != 0 AND gps_lng != 0;
+        """)
+        mem_count = cursor.rowcount
+        
+        cursor.execute("""
+        INSERT INTO cemeteries_spatial_idx (id, min_lng, max_lng, min_lat, max_lat)
+        SELECT rowid, gps_lng, gps_lng, gps_lat, gps_lat
+        FROM cemeteries
+        WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND gps_lat != 0 AND gps_lng != 0;
+        """)
+        cem_count = cursor.rowcount
+
+        # Populate GeoPackage Point geometries
+        cursor.execute("""
+        UPDATE memorials
+        SET geom = gpkg_point(gps_lng, gps_lat)
+        WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND gps_lat != 0 AND gps_lng != 0;
+        """)
+        
+        cursor.execute("""
+        UPDATE cemeteries
+        SET geom = gpkg_point(gps_lng, gps_lat)
+        WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND gps_lat != 0 AND gps_lng != 0;
+        """)
+
+        # Update spatial extents in gpkg_contents
+        cem_bounds = cursor.execute("SELECT MIN(gps_lng), MIN(gps_lat), MAX(gps_lng), MAX(gps_lat) FROM cemeteries WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND gps_lat != 0").fetchone()
+        if cem_bounds and cem_bounds[0] is not None:
+            cursor.execute("UPDATE gpkg_contents SET min_x = ?, min_y = ?, max_x = ?, max_y = ? WHERE table_name = 'cemeteries'", cem_bounds)
+
+        mem_bounds = cursor.execute("SELECT MIN(gps_lng), MIN(gps_lat), MAX(gps_lng), MAX(gps_lat) FROM memorials WHERE gps_lat IS NOT NULL AND gps_lng IS NOT NULL AND gps_lat != 0").fetchone()
+        if mem_bounds and mem_bounds[0] is not None:
+            cursor.execute("UPDATE gpkg_contents SET min_x = ?, min_y = ?, max_x = ?, max_y = ? WHERE table_name = 'memorials'", mem_bounds)
+
+        conn.commit()
+        return mem_count, cem_count
+    finally:
+        if close_conn:
+            conn.close()
+
+def export_geopackage_file(target_path=GPKG_PATH):
+    """
+    Exports a standalone OGC GeoPackage (.gpkg) file ready for direct drag-and-drop into QGIS or ArcGIS Pro.
+    """
+    import shutil
+    if os.path.exists(DB_PATH):
+        os.makedirs(os.path.dirname(target_path) or '.', exist_ok=True)
+        shutil.copyfile(DB_PATH, target_path)
+        return target_path
+    return None
 
 SEEDED_PLACE_QIDS = {
     # West Virginia Counties (Verified Wikidata QIDs)
@@ -544,7 +879,7 @@ def get_memorials(cemetery_id=None, query=None, limit=100, offset=0):
     try:
         cursor = conn.cursor()
         
-        sql = "SELECT m.*, c.nickname as cemetery_nickname FROM memorials m JOIN cemeteries c ON m.cemetery_id = c.id WHERE 1=1"
+        sql = "SELECT m.*, c.nickname as cemetery_nickname FROM memorials m LEFT JOIN cemeteries c ON m.cemetery_id = c.id WHERE 1=1"
         params = []
         
         if cemetery_id:
@@ -563,7 +898,7 @@ def get_memorials(cemetery_id=None, query=None, limit=100, offset=0):
         rows = cursor.fetchall()
         
         # Get total count for pagination
-        count_sql = "SELECT count(*) FROM memorials m JOIN cemeteries c ON m.cemetery_id = c.id WHERE 1=1"
+        count_sql = "SELECT count(*) FROM memorials m LEFT JOIN cemeteries c ON m.cemetery_id = c.id WHERE 1=1"
         count_params = []
         if cemetery_id:
             count_sql += " AND m.cemetery_id = ?"
@@ -583,7 +918,7 @@ def get_memorial_details(memorial_id):
     conn = get_db_conn()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT m.*, c.name as cemetery_name, c.nickname as cemetery_nickname FROM memorials m JOIN cemeteries c ON m.cemetery_id = c.id WHERE m.id = ?;", (memorial_id,))
+        cursor.execute("SELECT m.*, c.name as cemetery_name, c.nickname as cemetery_nickname FROM memorials m LEFT JOIN cemeteries c ON m.cemetery_id = c.id WHERE m.id = ?;", (memorial_id,))
         row = cursor.fetchone()
         if not row:
             return None

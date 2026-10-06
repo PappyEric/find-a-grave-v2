@@ -11,7 +11,7 @@ def parse_year(date_str):
     match = re.search(r'\b(1[6-9]\d\d|20[0-2]\d)\b', str(date_str))
     return int(match.group(1)) if match else None
 
-def run_quality_audit(cemetery_id=None):
+def run_quality_audit(cemetery_id=None, limit=None):
     """
     Scans stashed records for logical anomalies, chronological inconsistencies,
     kinship/maiden name gaps, and potential duplicate memorials.
@@ -218,12 +218,16 @@ def run_quality_audit(cemetery_id=None):
             sev_counts[a['severity']] = sev_counts.get(a['severity'], 0) + 1
             cat_counts[a['category']] = cat_counts.get(a['category'], 0) + 1
 
+        returned_anomalies = anomalies
+        if limit is not None and isinstance(limit, int) and limit > 0:
+            returned_anomalies = anomalies[:limit]
+
         return {
             'cemetery_id': cemetery_id if is_scoped else 'all',
             'total_anomalies': len(anomalies),
             'severity_counts': sev_counts,
             'category_counts': cat_counts,
-            'anomalies': anomalies
+            'anomalies': returned_anomalies
         }
     finally:
         conn.close()

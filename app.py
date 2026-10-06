@@ -3,6 +3,7 @@ import threading
 import time
 import requests
 import re
+import urllib.parse
 from urllib.parse import unquote
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify, render_template, send_file, send_from_directory
@@ -17,7 +18,18 @@ import io
 import glob
 import shutil
 
+from flask.json.provider import DefaultJSONProvider
+
 app = Flask(__name__)
+
+class CustomJSONProvider(DefaultJSONProvider):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return None
+        return super().default(obj)
+
+app.json_provider_class = CustomJSONProvider
+app.json = CustomJSONProvider(app)
 
 # --- Patch toolbox printing ---
 scraping_logs = []
@@ -411,7 +423,9 @@ def api_get_analytics():
 def api_get_quality_audit():
     try:
         cemetery_id = request.args.get('cemetery_id')
-        report = data_quality.run_quality_audit(cemetery_id=cemetery_id)
+        limit = request.args.get('limit')
+        limit_val = int(limit) if limit and limit.isdigit() else None
+        report = data_quality.run_quality_audit(cemetery_id=cemetery_id, limit=limit_val)
         return jsonify(report)
     except Exception as e:
         return jsonify({'error': f"Quality audit failed: {str(e)}"}), 500
@@ -810,6 +824,13 @@ def download_excel():
     if os.path.exists(output_file):
         return send_file(output_file, as_attachment=True)
     return "File not found", 404
+
+@app.route('/api/export/geopackage')
+def download_geopackage():
+    gpkg_file = database.export_geopackage_file()
+    if gpkg_file and os.path.exists(gpkg_file):
+        return send_file(gpkg_file, as_attachment=True, download_name='find_a_grave_spatial.gpkg', mimetype='application/geopackage+sqlite3')
+    return "GeoPackage file not found", 404
 
 @app.route('/api/memorials/<memorial_id>/export-gedcom', methods=['GET', 'POST'])
 def export_memorial_gedcom(memorial_id):
@@ -1412,23 +1433,33 @@ def api_county_quickstatements():
             
         subject = qid if qid else "LAST"
         
+        # Prepare Find a Grave source reference if cemetery ID is available
+        ref_clause = ""
+        cid_val = str(c.get('id') or '').strip()
+        if not c.get('is_custom') and cid_val:
+            # S248 = stated in, Q63056 = Find a Grave; S2025 = Find a Grave cemetery ID
+            ref_clause = f'\tS248\tQ63056\tS2025\t"{cid_val}"'
+
         if not qid:
             lines.append("CREATE")
-            lines.append("LAST\tP31\tQ39614")  # Instance of: cemetery
-            name = c.get('name') or f"Cemetery {c.get('id')}"
+            lines.append(f"LAST\tP31\tQ39614{ref_clause}")  # Instance of: cemetery
+            name = c.get('name') or f"Cemetery {cid_val}"
             lines.append(f'LAST\tLen\t"{name}"')
             
             c_county = c.get('county') or county
             c_state = c.get('state') or state
             desc_loc = f" in {c_county}, {c_state}" if (c_county or c_state) else ""
             lines.append(f'LAST\tDen\t"cemetery{desc_loc}"')
+        else:
+            # When updating an existing item that might lack P31 cemetery, include it with reference
+            lines.append(f'{subject}\tP31\tQ39614{ref_clause}')
 
         # Find a Grave Cemetery ID (P2025)
-        if not c.get('is_custom') and c.get('id'):
-            lines.append(f'{subject}\tP2025\t"{c["id"]}"')
+        if not c.get('is_custom') and cid_val:
+            lines.append(f'{subject}\tP2025\t"{cid_val}"')
             
         # Country: United States of America (P17 -> Q30)
-        lines.append(f'{subject}\tP17\tQ30')
+        lines.append(f'{subject}\tP17\tQ30{ref_clause}')
             
         # Located in administrative territorial entity (P131)
         added_p131 = set()
@@ -1440,7 +1471,7 @@ def api_county_quickstatements():
         for place_name, place_qid in sorted(place_qids_dict.items(), key=lambda x: len(x[0]), reverse=True):
             if place_name in combined_loc_text and not place_name.endswith('county') and place_name not in ('cabell', 'west virginia'):
                 if place_qid not in added_p131:
-                    lines.append(f'{subject}\tP131\t{place_qid}')
+                    lines.append(f'{subject}\tP131\t{place_qid}{ref_clause}')
                     added_p131.add(place_qid)
 
         # 2. County lookup
@@ -1450,12 +1481,12 @@ def api_county_quickstatements():
             county_qid = resolve_place_qid(c_county_str, c.get('state') or state)
             
         if county_qid and county_qid not in added_p131:
-            lines.append(f'{subject}\tP131\t{county_qid}')
+            lines.append(f'{subject}\tP131\t{county_qid}{ref_clause}')
             added_p131.add(county_qid)
             
         # Coordinate Location (P625)
         if c.get('gps_lat') is not None and c.get('gps_lng') is not None and float(c.get('gps_lat') or 0) != 0:
-            lines.append(f'{subject}\tP625\t@{c["gps_lat"]}/{c["gps_lng"]}')
+            lines.append(f'{subject}\tP625\t@{c["gps_lat"]}/{c["gps_lng"]}{ref_clause}')
             
         # OpenStreetMap Way ID (P10689) / Relation ID (P402) / Node ID (P11693)
         osm = (c.get('osm_id') or '').strip()
@@ -1695,7 +1726,29 @@ def api_cemetery_automatch_single(cemetery_id):
         except Exception as e:
             pass
 
-    # 2. Wikidata REST API Search Fallback (if SPARQL timed out or found nothing)
+    # 2. Check existing OSM element for wikidata tag (if OSM is known but Wikidata is missing)
+    if not found_wikidata and existing_osm:
+        try:
+            # Handle formats like "way/123", "node/123", "relation/123", or plain "123"
+            clean_osm = existing_osm.strip()
+            osm_type = "way"
+            osm_num = clean_osm
+            if "/" in clean_osm:
+                osm_type, osm_num = clean_osm.split("/", 1)
+            
+            osm_api_url = f"https://api.openstreetmap.org/api/0.6/{osm_type}/{osm_num}.json"
+            req = urllib.request.Request(osm_api_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) FindAGraveBot/2.0 (Genealogy Research Tool)'})
+            res_data = json.loads(urllib.request.urlopen(req, timeout=6.0).read().decode('utf-8'))
+            elements = res_data.get('elements', [])
+            if elements:
+                el_tags = elements[0].get('tags', {})
+                if el_tags.get('wikidata'):
+                    found_wikidata = el_tags['wikidata'].strip()
+                    wikidata_reason = "🔗 Matched via OSM wikidata tag"
+        except Exception as e:
+            pass
+
+    # 3. Wikidata REST API Search Fallback (if still missing)
     if not found_wikidata and name:
         try:
             search_url = f"https://www.wikidata.org/w/api.php?action=wbsearchentities&search={urllib.parse.quote(name)}&language=en&format=json&type=item"
@@ -1711,7 +1764,7 @@ def api_cemetery_automatch_single(cemetery_id):
         except Exception as e:
             pass
 
-    # 3. Overpass API lookup (if missing)
+    # 4. Overpass API lookup (if OSM is missing)
     if not found_osm:
         try:
             lat_num = float(lat) if lat is not None else 0.0
@@ -1770,8 +1823,10 @@ out center tags;"""
         "cemetery_name": name,
         "suggested_wikidata_qid": found_wikidata,
         "wikidata_reason": wikidata_reason,
+        "wikidata_is_new": bool(found_wikidata and found_wikidata != existing_wd),
         "suggested_osm_id": found_osm,
-        "osm_reason": osm_reason
+        "osm_reason": osm_reason,
+        "osm_is_new": bool(found_osm and found_osm != existing_osm)
     })
 
 @app.route('/api/cemetery/wikitree_snippet/<cemetery_id>')
